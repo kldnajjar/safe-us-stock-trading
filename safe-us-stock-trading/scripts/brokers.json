@@ -1,0 +1,47 @@
+{
+  "registry_version": "2026-11-05",
+  "notes": "Fee schedules per trading platform. Every profile is USER-PROVIDED unless 'verified_source' is set. Add a platform by copying a template below and filling in the user's actual schedule. The assistant never edits this file during a session.",
+  "fee_models": {
+    "percent":   "fee = clamp(rate x order value, min, max) per order",
+    "per_share": "fee = clamp(per_share x shares, min, max_pct x order value) per order",
+    "flat":      "fee = flat amount per order",
+    "zero":      "no commission (spread, FX and regulatory fees may still apply)"
+  },
+  "brokers": {
+    "bank-al-etihad-jo": {
+      "name": "Bank al Etihad (Jordan) app, US stocks",
+      "fee": {"model": "percent", "rate": 0.005, "min": 0.50, "max": 30.0},
+      "min_order": 100.0,
+      "currency": "USD",
+      "cash_interest": "unknown",
+      "order_types": "unverified",
+      "ptp_withholding_pct": 10,
+      "source": "user-provided",
+      "verified_source": null
+    },
+    "template-percent": {
+      "name": "TEMPLATE: percent of order value",
+      "fee": {"model": "percent", "rate": null, "min": null, "max": null},
+      "min_order": null, "currency": "USD", "cash_interest": "unknown", "order_types": "unverified",
+      "source": "template", "verified_source": null, "template": true
+    },
+    "template-per-share": {
+      "name": "TEMPLATE: per share",
+      "fee": {"model": "per_share", "per_share": null, "min": null, "max_pct": null},
+      "min_order": null, "currency": "USD", "cash_interest": "unknown", "order_types": "unverified",
+      "source": "template", "verified_source": null, "template": true
+    },
+    "template-flat": {
+      "name": "TEMPLATE: flat per order",
+      "fee": {"model": "flat", "flat": null},
+      "min_order": null, "currency": "USD", "cash_interest": "unknown", "order_types": "unverified",
+      "source": "template", "verified_source": null, "template": true
+    },
+    "template-zero": {
+      "name": "TEMPLATE: commission-free",
+      "fee": {"model": "zero"},
+      "min_order": null, "currency": "USD", "cash_interest": "unknown", "order_types": "unverified",
+      "source": "template", "verified_source": null, "template": true
+    }
+  }
+}

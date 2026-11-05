@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Packaged skill builds (rebuild with the command in README.md)
+*.skill
+dist/
+
+# Session working files: portfolio state, plans and screening results
+# can contain personal holdings and cash balances. Never commit them.
+STATE_IN*.json
+ACTUAL*.json
+PROJECTED*.json
+PLAN*.json
+SCREEN_*.json
+state*.json
+plan*.json
+screen*.json
+*.local.json
+
+# Local broker profiles with personal fee schedules (keep brokers.json for shared templates)
+brokers.local.json
+
+# Secrets
+.env
+.env.*
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

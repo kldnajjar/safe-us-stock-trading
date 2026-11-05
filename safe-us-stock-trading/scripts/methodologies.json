@@ -1,0 +1,405 @@
+{
+  "registry_version": "2026-11-05",
+  "max_age_days": 120,
+  "notes": "Data only. The assistant must never edit this file during a screening session. Changes are made by the maintainer, reviewed against the source document, and followed by a full test run.",
+  "methodologies": {
+    "aaoifi": {
+      "versions": [
+        {
+          "document_version": "SS-21",
+          "current": true,
+          "enabled": true,
+          "provider": "AAOIFI",
+          "name": "Shari'ah Standard No. 21: Financial Paper (Shares and Bonds)",
+          "effective_date": null,
+          "source": "https://www.nbfi-modaraba.com.pk/wp-content/uploads/2024/07/ShariahStandard21.pdf",
+          "verified_on": "2026-11-05",
+          "is_index": false,
+          "history_months": 0,
+          "ratios": [
+            {
+              "name": "interest_debt",
+              "clause": "3/4/2",
+              "numerator": [
+                "interest_debt"
+              ],
+              "denominator": "market_cap",
+              "comparator": "<=",
+              "threshold": 0.3,
+              "entry": null,
+              "exit_buffer": null
+            },
+            {
+              "name": "interest_deposits",
+              "clause": "3/4/3",
+              "numerator": [
+                "interest_deposits"
+              ],
+              "denominator": "market_cap",
+              "comparator": "<=",
+              "threshold": 0.3,
+              "entry": null,
+              "exit_buffer": null
+            }
+          ],
+          "income": {
+            "clause": "3/4/4",
+            "numerator": "nonpermissible_income",
+            "denominator": "total_income",
+            "comparator": "<=",
+            "threshold": 0.05
+          },
+          "buffer_rule": null,
+          "purification": {
+            "method": "attributable",
+            "clauses": "3/4/6/1, 3/4/6/2, 3/4/6/4"
+          }
+        }
+      ]
+    },
+    "msci": {
+      "versions": [
+        {
+          "document_version": "MSCI Islamic Index Series Methodology, May 2025",
+          "current": true,
+          "enabled": true,
+          "provider": "MSCI",
+          "name": "MSCI Islamic Index Series",
+          "effective_date": "2025-05",
+          "source": "https://www.msci.com/documents/10199/8a59e89f-5134-de21-6a03-082ecfaa9e42",
+          "verified_on": "2026-11-05",
+          "is_index": true,
+          "history_months": 0,
+          "ratios": [
+            {
+              "name": "total_debt",
+              "numerator": [
+                "total_debt"
+              ],
+              "denominator": "total_assets",
+              "comparator": "<=",
+              "entry": 0.3,
+              "threshold": 0.3333,
+              "exit_buffer": 0.35
+            },
+            {
+              "name": "cash_and_interest_securities",
+              "numerator": [
+                "cash",
+                "interest_deposits",
+                "interest_securities"
+              ],
+              "denominator": "total_assets",
+              "comparator": "<=",
+              "entry": 0.3,
+              "threshold": 0.3333,
+              "exit_buffer": 0.35
+            },
+            {
+              "name": "receivables_and_cash",
+              "numerator": [
+                "receivables",
+                "cash",
+                "interest_deposits"
+              ],
+              "denominator": "total_assets",
+              "comparator": "<=",
+              "entry": 0.46,
+              "threshold": 0.7,
+              "exit_buffer": null
+            }
+          ],
+          "income": {
+            "numerator": "nonpermissible_income",
+            "denominator": "total_income",
+            "comparator": "<=",
+            "threshold": 0.05
+          },
+          "buffer_rule": "msci_exit_buffer_average",
+          "purification": {
+            "method": "dividend"
+          },
+          "evidence": {
+            "retrieved": "2026-11-05",
+            "documents": [
+              "https://www.msci.com/documents/10199/8a59e89f-5134-de21-6a03-082ecfaa9e42 (May 2025)"
+            ],
+            "note": "A July 2025 edition is reported by a reviewer; not retrieved here (the 'latest' link returned binary). Add it to equivalent_versions only after a maintainer compares its ratio table rule by rule."
+          }
+        }
+      ]
+    },
+    "msci-m": {
+      "versions": [
+        {
+          "document_version": "MSCI Islamic M-Series Methodology, May 2025",
+          "current": true,
+          "enabled": true,
+          "provider": "MSCI",
+          "name": "MSCI Islamic M-Series",
+          "effective_date": "2025-05",
+          "source": "https://www.msci.com/documents/10199/8a59e89f-5134-de21-6a03-082ecfaa9e42",
+          "verified_on": "2026-11-05",
+          "is_index": true,
+          "history_months": 36,
+          "ratios": [
+            {
+              "name": "total_debt",
+              "numerator": [
+                "total_debt"
+              ],
+              "denominator": "avg_market_cap_36m",
+              "comparator": "<=",
+              "entry": 0.3,
+              "threshold": 0.3333,
+              "exit_buffer": null
+            },
+            {
+              "name": "cash_and_interest_securities",
+              "numerator": [
+                "cash",
+                "interest_deposits",
+                "interest_securities"
+              ],
+              "denominator": "avg_market_cap_36m",
+              "comparator": "<=",
+              "entry": 0.3,
+              "threshold": 0.3333,
+              "exit_buffer": null
+            },
+            {
+              "name": "receivables_and_cash",
+              "numerator": [
+                "receivables",
+                "cash",
+                "interest_deposits"
+              ],
+              "denominator": "avg_market_cap_36m",
+              "comparator": "<=",
+              "entry": 0.46,
+              "threshold": 0.49,
+              "exit_buffer": null
+            }
+          ],
+          "income": {
+            "numerator": "nonpermissible_income",
+            "denominator": "total_income",
+            "comparator": "<=",
+            "threshold": 0.05
+          },
+          "buffer_rule": null,
+          "purification": {
+            "method": "dividend"
+          },
+          "evidence": {
+            "retrieved": "2026-11-05",
+            "documents": [
+              "https://www.msci.com/documents/10199/8a59e89f-5134-de21-6a03-082ecfaa9e42 (May 2025)"
+            ],
+            "note": "A July 2025 edition is reported by a reviewer; not retrieved here (the 'latest' link returned binary). Add it to equivalent_versions only after a maintainer compares its ratio table rule by rule."
+          }
+        }
+      ]
+    },
+    "sp": {
+      "versions": [
+        {
+          "document_version": "S&P Shariah Indices Methodology, October 2026",
+          "current": true,
+          "enabled": true,
+          "provider": "S&P Dow Jones Indices",
+          "name": "S&P Shariah Indices",
+          "effective_date": "2026-09-21",
+          "source": "https://www.spglobal.com/spdji/en/documents/methodologies/methodology-sp-shariah-indices.pdf",
+          "verified_on": "2026-11-05",
+          "is_index": true,
+          "history_months": 36,
+          "ratios": [
+            {
+              "name": "leverage",
+              "numerator": [
+                "total_debt"
+              ],
+              "denominator": "avg_market_cap_36m",
+              "comparator": "<",
+              "entry": null,
+              "threshold": 0.3,
+              "exit_buffer": null
+            },
+            {
+              "name": "cash",
+              "numerator": [
+                "cash",
+                "interest_deposits",
+                "interest_securities"
+              ],
+              "denominator": "avg_market_cap_36m",
+              "comparator": "<",
+              "entry": null,
+              "threshold": 0.3,
+              "exit_buffer": null
+            }
+          ],
+          "income": {
+            "numerator": "nonpermissible_income",
+            "denominator": "total_income",
+            "comparator": "<",
+            "threshold": 0.05
+          },
+          "buffer_rule": "two_point_three_periods",
+          "buffer_pp": 0.02,
+          "purification": {
+            "method": "dividend"
+          },
+          "evidence": {
+            "retrieved": "2026-11-05",
+            "documents": [
+              "https://www.spglobal.com/spdji/en/documents/methodologies/methodology-sp-shariah-indices.pdf (cover: October 2026)",
+              "https://www.spglobal.com/spdji/en/documents/indexnews/announcements/20260820-1484595/1484595_sp-shariah-indices-update-20260820.pdf"
+            ],
+            "change_log": "Accounting-Based Screens, effective 09/18/2026 (applied at the September 2026 rebalance, before open 2026-09-21): leverage-only (Debt / 36-month average market value of equity < 33%) replaced by leverage < 30% plus cash ((Cash & Deposits + Interest Bearing Securities) / 36-month average market value of equity) < 30%.",
+            "note": "Reviewers reaching an older cached copy (e.g. May 2026) will see the pre-change rule."
+          }
+        },
+        {
+          "document_version": "S&P Shariah Indices Methodology, 2023 (leverage only)",
+          "current": false,
+          "enabled": true,
+          "historical_only": true,
+          "provider": "S&P Dow Jones Indices",
+          "name": "S&P Shariah Indices",
+          "effective_date": "2023-09-15",
+          "superseded_on": "2026-09-21",
+          "source": "https://www.spglobal.com/spdji/en/documents/methodologies/methodology-sp-shariah-indices.pdf",
+          "verified_on": "2026-11-05",
+          "is_index": true,
+          "history_months": 36,
+          "ratios": [
+            {
+              "name": "leverage",
+              "numerator": [
+                "total_debt"
+              ],
+              "denominator": "avg_market_cap_36m",
+              "comparator": "<",
+              "entry": null,
+              "threshold": 0.33,
+              "exit_buffer": null
+            }
+          ],
+          "income": {
+            "numerator": "nonpermissible_income",
+            "denominator": "total_income",
+            "comparator": "<",
+            "threshold": 0.05
+          },
+          "buffer_rule": "two_point_three_periods",
+          "buffer_pp": 0.02,
+          "purification": {
+            "method": "dividend"
+          }
+        }
+      ]
+    },
+    "djim": {
+      "versions": [
+        {
+          "document_version": "Dow Jones Islamic Market Indices Methodology, September 2026",
+          "current": true,
+          "enabled": true,
+          "provider": "S&P Dow Jones Indices",
+          "name": "Dow Jones Islamic Market Indices",
+          "effective_date": "2026-09-18",
+          "source": "https://www.spglobal.com/spdji/en/documents/methodologies/methodology-dj-islamic-market-indices.pdf",
+          "verified_on": "2026-11-05",
+          "is_index": true,
+          "history_months": 24,
+          "ratios": [
+            {
+              "name": "leverage",
+              "numerator": [
+                "interest_debt"
+              ],
+              "denominator": "avg_market_cap_24m",
+              "comparator": "<",
+              "entry": null,
+              "threshold": 0.3,
+              "exit_buffer": null
+            },
+            {
+              "name": "cash",
+              "numerator": [
+                "cash",
+                "interest_deposits",
+                "interest_securities"
+              ],
+              "denominator": "avg_market_cap_24m",
+              "comparator": "<",
+              "entry": null,
+              "threshold": 0.3,
+              "exit_buffer": null
+            }
+          ],
+          "income": {
+            "numerator": "nonpermissible_income",
+            "denominator": "total_income",
+            "comparator": "<",
+            "threshold": 0.05
+          },
+          "buffer_rule": "two_point_three_periods",
+          "buffer_pp": 0.02,
+          "purification": {
+            "method": "dividend"
+          },
+          "evidence": {
+            "retrieved": "2026-11-05",
+            "documents": [
+              "https://www.spglobal.com/spdji/en/documents/methodologies/methodology-dj-islamic-market-indices.pdf (cover: September 2026)"
+            ],
+            "change_log": "Appendix E, Accounting-Based Screens, effective 09/18/2026: leverage-only (< 33%) replaced by 'All the following must be less than 30%': total interest-bearing debt / trailing 24-month average market capitalization; cash and interest-bearing securities / trailing 24-month average market capitalization.",
+            "note": "Reviewers reaching an older cached copy (e.g. February 2026) will see the pre-change rule."
+          }
+        },
+        {
+          "document_version": "Dow Jones Islamic Market Indices Methodology, 2023 (leverage only)",
+          "current": false,
+          "enabled": true,
+          "historical_only": true,
+          "provider": "S&P Dow Jones Indices",
+          "name": "Dow Jones Islamic Market Indices",
+          "effective_date": "2023-09-15",
+          "superseded_on": "2026-09-18",
+          "source": "https://www.spglobal.com/spdji/en/documents/methodologies/methodology-dj-islamic-market-indices.pdf",
+          "verified_on": "2026-11-05",
+          "is_index": true,
+          "history_months": 24,
+          "ratios": [
+            {
+              "name": "leverage",
+              "numerator": [
+                "interest_debt"
+              ],
+              "denominator": "avg_market_cap_24m",
+              "comparator": "<",
+              "entry": null,
+              "threshold": 0.33,
+              "exit_buffer": null
+            }
+          ],
+          "income": {
+            "numerator": "nonpermissible_income",
+            "denominator": "total_income",
+            "comparator": "<",
+            "threshold": 0.05
+          },
+          "buffer_rule": "two_point_three_periods",
+          "buffer_pp": 0.02,
+          "purification": {
+            "method": "dividend"
+          }
+        }
+      ]
+    }
+  },
+  "equivalent_versions_policy": "An alternate document version may be listed in equivalent_versions only after a maintainer has compared every ratio, denominator, comparator, buffer and purification rule against the registered entry and recorded the comparison in 'evidence'. Titles alone never establish equivalence."
+}
