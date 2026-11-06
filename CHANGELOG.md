@@ -6,7 +6,7 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 ### Added
 - MIT `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue and PR templates.
-- GitHub Actions workflow that runs `run_checks.py` on Python 3.9 and 3.12 for every push and PR.
+- GitHub Actions workflow that runs `run_checks.py` on Python 3.9 (Ubuntu 24.04) and 3.13 (latest Ubuntu) for every push and PR.
 
 ### Fixed
 - Dashboard crashed when a holding had no stop (`UNQUANTIFIED`) or was past it (`BREACHED`); those rows now show the status and a CHECK badge, and the open-risk tile says real risk is unknown instead of implying $0. Regression test added (303 tests).

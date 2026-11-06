@@ -268,7 +268,7 @@ The skill never edits this file during a session. Updates go through a PR; see [
 python3 safe-us-stock-trading/scripts/run_checks.py
 ```
 
-It prints a JSON report and exits with code 0 only if every file is present, both registries pass schema validation, and every test passes. The skill runs it at the start of each session and drops to **watchlist-only** mode if it fails. CI runs it on Python 3.9 and 3.12 for every push and pull request.
+It prints a JSON report and exits with code 0 only if every file is present, both registries pass schema validation, and every test passes. The skill runs it at the start of each session and drops to **watchlist-only** mode if it fails. CI runs it on Python 3.9 (Ubuntu 24.04) and 3.13 (latest Ubuntu) for every push and pull request.
 
 | Test file | Covers | Tests |
 |---|---|:-:|
