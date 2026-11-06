@@ -1,0 +1,28 @@
+name: Shariah methodology update
+description: A provider published a new methodology version
+labels: [methodology]
+body:
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Methodology
+      options: [AAOIFI, MSCI Islamic Index Series, MSCI Islamic M-Series, S&P Shariah, Dow Jones Islamic Market]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: New document version and effective date
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Official source (https)
+    validations:
+      required: true
+  - type: textarea
+    id: diff
+    attributes:
+      label: What changed
+      description: Ratios, denominators, thresholds, buffers, purification. Titles alone don't prove equivalence.

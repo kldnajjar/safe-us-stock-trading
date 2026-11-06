@@ -1,28 +1,53 @@
+<div align="center">
+
 # Safe US Stock Trading
 
-A Claude skill that plans US stock, ETF and gold/silver trades for any investor on any broker. It asks how much money you want to trade and what you want to buy. Then it gives exact **buy, sell and stop-loss prices**, sized to your own fees and risk level, with news-driven market analysis, optional **boycott** and **Shariah (halal/haram)** screens, and a short plain-language output.
+**A Claude skill that turns "what should I buy?" into an exact, fee-aware, risk-capped trade plan, or an honest "no trade today".**
 
-> **Not financial, tax or religious advice.** The skill is research support. You decide and place every trade yourself; it never logs into a broker or places orders.
+[![checks](https://github.com/kldnajjar/safe-us-stock-trading/actions/workflows/checks.yml/badge.svg)](https://github.com/kldnajjar/safe-us-stock-trading/actions/workflows/checks.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
+![Tests: 302](https://img.shields.io/badge/tests-302%20passing-brightgreen)
 
-## What it does
+[Quick start](#quick-start) · [What you get](#what-you-get) · [How it works](#how-it-works) · [Configuration](#configuration) · [Safety design](#safety-design) · [Contributing](#contributing)
 
-- **Asks first:** how much money, what to buy (find ideas / your tickers / a theme / review holdings), how long to hold (short / medium / long), and how much risk (safe / balanced / aggressive).
-- **Any broker:** fee schedules live in `brokers.json` (percent, per-share, flat or commission-free, with optional separate sell fees and FX cost). There is no default fee schedule; without one the engine returns NO TRADE.
-- **Exact levels:**
-  - a limit buy price
-  - a stop-loss (or a review level for long-term ideas)
-  - two sell targets
-  - share counts, every fee, the planned loss at the stop, and a gap-down scenario
-- **Never lowers a stop** after taking partial profit.
-- **Portfolio-wide limits:** position size, sector caps (ETFs looked through), total open risk, and a cash floor. Unquantified risk blocks new trades.
-- **News from primary sources first:** Fed, BLS, BEA, Treasury, SEC EDGAR, World Gold Council. Then major outlets: BBC, Reuters, AP, Bloomberg, FT, WSJ, CNBC, The Economist, MarketWatch, Barron's, Yahoo Finance, Al Jazeera, The Guardian, Nikkei Asia. Releases are read against expectations, not by fixed rules.
-- **Gold/silver signal:** a six-factor score; unknown factors lower confidence instead of counting as zero.
-- **Optional screens, each the user's choice:**
-  - **Boycott:** UN OHCHR settlements database, BDS, AFSC Investigate, Who Profits, SEC filings. The status is computed from source-by-source evidence (finding, date, link), never typed in.
-  - **Shariah:** AAOIFI SS-21, MSCI Islamic (Index Series and M-Series), S&P Shariah, Dow Jones Islamic Market. Thresholds come from a versioned, sourced registry, with purification in USD.
-- **Simple output by default:**
+</div>
 
-```
+> [!WARNING]
+> **Research support, not financial, tax or religious advice.** The skill never logs into a broker and never places orders. You decide and you place every trade.
+
+---
+
+## Why
+
+Asking an AI chatbot for stock picks usually gets you confident prose with made-up prices, no fees, no stop-loss, and no idea how much of your account is at risk.
+
+This skill splits the work in two:
+
+- **Claude does the research.** It reads the news, finds candidates and gathers prices and filings, with sources.
+- **A tested Python engine does every number.** It sets the position size, fees, stop, targets, breakeven and portfolio limits. If the engine says no, the answer is no.
+
+The result is a plan you can check line by line, sized to **your** broker's fees and **your** risk level.
+
+## What you get
+
+| Feature | What it does |
+|---|---|
+| 🎯 **Exact levels** | Limit buy price, stop-loss (or a review level for long-term holds), two sell targets, share counts and every fee |
+| 💸 **Real costs** | Any broker's fee schedule (percent, per share, flat or commission-free), separate sell fees, FX only when currency is actually converted, plus spread and slippage |
+| 🛡️ **Portfolio-wide limits** | Per-stock and per-ETF caps, sector caps (ETFs looked through), total open risk, cash floor, max positions |
+| 📰 **News-driven context** | Fed, BLS, BEA, Treasury and SEC first, then major outlets; every release is read against expectations, not fixed rules |
+| 🥇 **Gold / silver signal** | Six-factor score; factors that can't be verified lower confidence instead of counting as zero |
+| ☪️ **Optional Shariah screen** | AAOIFI SS-21, MSCI Islamic (two series), S&P Shariah or Dow Jones Islamic, from a versioned and sourced rules registry, with purification in USD |
+| ✊ **Optional boycott screen** | UN OHCHR settlements database, BDS, AFSC Investigate, Who Profits, SEC filings; the status is computed from evidence, never typed in |
+| 📊 **Dashboard every run** | One self-contained HTML page with your portfolio, the limits you've used, and a BUY / WAIT / NO BUY card for each idea, showing why |
+
+Both screens are **off unless you turn them on**.
+
+### Plain-language output
+
+```text
 RISK: BALANCED. HOLD: SHORT.
 MARKET: CALM. FED WAIT.
 GOLD/SILVER: WAIT.
@@ -46,114 +71,119 @@ NO BUY XYZ: boycott screen: excluded
 YOU DECIDE. YOU PLACE ORDER. NOT ADVICE.
 ```
 
-- **Dashboard every run:** `render_dashboard.py` turns the same engine files into one self-contained HTML page (portfolio, limits used, BUY / WAIT / NO BUY cards with reasons, holdings, sector exposure, sources), light and dark, phone-friendly. Numbers are copied from the engine, never recomputed.
+### Dashboard
 
-## Repository layout
+<p align="center">
+  <img src="docs/dashboard-preview.png" alt="Dashboard showing portfolio tiles, BUY / WAIT / NO BUY cards, holdings and sector exposure" width="900">
+  <br><sub>Test data, not real positions. Light and dark mode, works on a phone.</sub>
+</p>
 
-```
-.
-├── README.md
-├── .gitignore
-├── .github/workflows/checks.yml   # runs run_checks.py on every push / PR
-└── safe-us-stock-trading/              # the skill itself
-    ├── SKILL.md                   # instructions Claude follows
-    └── scripts/
-        ├── run_checks.py          # one command: files + registries + all tests
-        ├── size_trade.py          # sizing, fees, gates, exits (price trades and T-bill funds)
-        ├── portfolio_state.py     # actual vs projected portfolio, orders, risk buckets
-        ├── shariah_screen.py      # Shariah screen and result files with provenance
-        ├── boycott_screen.py      # boycott screen: status computed from per-source evidence
-        ├── fees.py                # broker cost models
-        ├── render_simple.py       # plain-language output, numbers copied from the engine
-        ├── render_dashboard.py    # per-run HTML dashboard, numbers copied from the engine
-        ├── methodologies.json     # Shariah rules registry (versioned, sourced, dated)
-        ├── brokers.json           # broker fee profiles and templates
-        ├── test_size_trade.py     # unit tests
-        ├── test_audit_regressions.py  # 16 independent audit regression tests (v4.1 audit)
-        ├── test_v42_followup.py   # 6 independent follow-up audit tests (v4.2 audit)
-        ├── test_v43_policy.py     # clock, market price, stop capability, FX, certificate/market-cap dates
-        ├── test_v43_independent.py  # 5 independent audit tests (v4.3 audit)
-        ├── test_v44_hardening.py  # ETF weights, buy/sell orders, state weights, bounded sizing (randomized)
-        ├── test_v44_independent_followup.py  # 6 independent audit tests (v4.4 audit)
-        ├── test_v45_hardening.py  # worst-case Unclassified (randomized), cent grid, T-bill market, order states
-        ├── test_dashboard.py      # dashboard: verbatim numbers, safety lines, escaping, self-contained
-        └── test_integration.py    # full command-line chain across every asset type
-```
+## Quick start
 
-Only Python 3.9+ standard library is needed; there are no dependencies to install.
+**Requirements:** Python 3.9+ (standard library only; nothing to install) and Claude with skills enabled.
 
-## Install
-
-**Claude apps (upload):** build the package and upload it in Claude's skill settings.
+**1. Get it**
 
 ```bash
-zip -r safe-us-stock-trading.skill safe-us-stock-trading -x '*/__pycache__/*'
+git clone https://github.com/kldnajjar/safe-us-stock-trading
+cd safe-us-stock-trading
 ```
 
-**Claude Code:** copy or symlink the skill folder into your skills directory.
+**2. Verify it**
 
 ```bash
-cp -r safe-us-stock-trading ~/.claude/skills/
+python3 safe-us-stock-trading/scripts/run_checks.py   # prints "ok": true
 ```
 
-## Verify
+**3. Install it**
 
-```bash
-python3 safe-us-stock-trading/scripts/run_checks.py
+| Where | How |
+|---|---|
+| **Claude apps** (web, desktop) | `zip -r safe-us-stock-trading.skill safe-us-stock-trading -x '*/__pycache__/*'`, then upload the file in Claude's skill settings |
+| **Claude Code** | `cp -r safe-us-stock-trading ~/.claude/skills/` |
+
+**4. Ask**
+
+- *"What should I buy with $5,000? Long term, balanced."*
+- *"Plan a short-term trade on AAPL and MSFT."*
+- *"Review my holdings and tell me what to sell."*
+- *"Is now a good time to add gold?"*
+
+The first time, it asks for your platform and fees, which screens you want, your tax residency, and your current holdings, cash and open orders.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Your question<br/>amount · goal · horizon · risk] --> B[Engine self-check<br/>run_checks.py]
+    B --> C[Portfolio state<br/>actual vs projected]
+    C --> D[News scan<br/>market regime + events]
+    D --> E[Candidates]
+    E --> F{Screens<br/>if turned on}
+    F -- pass --> G[Prices + levels]
+    F -- fail --> X[NO BUY + reason]
+    G --> H[size_trade.py<br/>fees · caps · stop · R:R]
+    H -- TRADE --> I[Plan]
+    H -- WATCHLIST --> W[Conditional plan]
+    H -- NO TRADE --> X
+    I & W & X --> O[Simple text + dashboard]
 ```
 
-This prints a JSON report and exits with code 0 only if every file is present, both registries pass schema validation, and every test passes. The skill runs this itself at the start of each session and falls back to watchlist-only mode if it fails. The same check runs in GitHub Actions on every push.
+| Step | Who | Output |
+|---|---|---|
+| Research: news, candidates, prices, filings | Claude | Cited facts with dates |
+| Screens | `boycott_screen.py`, `shariah_screen.py` | Result files tied to ticker and ISIN, which expire |
+| Portfolio state | `portfolio_state.py` | Actual and projected exposure, open risk, cash |
+| Sizing and gates | `size_trade.py` + `fees.py` | `TRADE` / `WATCHLIST` / `NO TRADE` with every figure |
+| Presentation | `render_simple.py`, `render_dashboard.py` | Text and HTML; numbers copied, never recomputed |
 
-## Use
+### Risk profiles
 
-Ask Claude something like:
+| Limit (% of total portfolio) | Safe | Balanced | Aggressive |
+|---|:-:|:-:|:-:|
+| Single stock | 5% | 10% | 15% |
+| Single diversified ETF | 25% | 35% | 40% |
+| Planned loss per idea | 0.5% | 1% | 2% |
+| Max total open downside | 3% | 6% | 10% |
+| Max per sector | 20% | 30% | 40% |
+| Settled-cash floor | 20% | 10% | 5% |
+| Max stock + ETF positions | 6 | 8 | 10 |
+| Min net reward:risk | 2.5 | 2.0 | 2.0 |
 
-- "What stocks should I buy with $5,000? Long term, balanced."
-- "Plan a short-term trade on these tickers: …"
-- "Review my holdings and tell me what to sell."
-- "Should I move into gold now?"
-
-The first time, it asks for your platform and fee schedule, which screens you want, your tax residency, and your current holdings, cash and open orders.
+These limits are conservative design defaults, not proven optimal allocations. Leveraged and inverse ETFs, options and PTPs are never used.
 
 ## Configuration
 
 ### Add your broker
 
-Copy a template in `safe-us-stock-trading/scripts/brokers.json` (`template-percent`, `template-per-share`, `template-flat`, `template-zero`), give it a new id, fill in your schedule, remove `"template": true`, then run `run_checks.py`.
+Fee profiles live in [`brokers.json`](safe-us-stock-trading/scripts/brokers.json). There is **no default fee schedule**: without one, the engine returns NO TRADE.
 
-- **Rates are fractions:** `0.005` means 0.5%. The engine rejects 0.1 or more as a likely mistake.
-- **Optional extras:** a separate `sell` schedule, and `fx_pct` for currency conversion. FX is charged only when the instrument's currency differs from the account currency (`--account-currency`, else the profile's `currency`), so a USD account buying US stocks pays no phantom FX. There's no exchange-rate model yet, so a cross-currency account gets research-only plans.
-- **Spread and slippage are applied separately** (`--friction-bps`, default 5 per side).
+1. Copy a template (`template-percent`, `template-per-share`, `template-flat`, `template-zero`) and give it a new id.
+2. Fill in your schedule and remove `"template": true`.
+3. Run `run_checks.py`.
 
-To keep a personal fee schedule out of public commits, put it in `brokers.local.json` (git-ignored, same format) and pass it with `--brokers path/to/brokers.local.json`.
+```jsonc
+// rates are fractions: 0.005 = 0.5%  (0.1 or more is rejected as a likely mistake)
+"my-broker": {
+  "name": "My Broker, US stocks",
+  "fee": {
+    "model": "percent", "rate": 0.0025, "min": 5.0, "max": 50.0,
+    "sell": { "model": "percent", "rate": 0.003, "min": 5.0, "max": 50.0 },  // optional
+    "fx_pct": 0.004                                                          // optional
+  },
+  "min_order": 100.0, "currency": "USD",
+  "cash_interest": "unknown", "order_types": "unverified",
+  "source": "user-provided", "verified_source": null
+}
+```
+
+To keep a personal schedule out of public commits, put it in `brokers.local.json` (git-ignored) and pass `--brokers path/to/brokers.local.json`. Want your broker included for everyone? [Open a broker profile request](https://github.com/kldnajjar/safe-us-stock-trading/issues/new?template=broker_profile.yml).
 
 ### Shariah methodology registry
 
-`methodologies.json` is the only source of Shariah thresholds. Each entry records:
-- provider and document version
-- effective date and official source URL
-- the date it was verified
-- exact ratios, denominators and comparators
-- entry, threshold and exit buffers, and any multi-period rule
-- the purification method
-- retrieval evidence
+[`methodologies.json`](safe-us-stock-trading/scripts/methodologies.json) is the **only** source of Shariah thresholds. Each entry records the provider, document version, effective date, official URL, date verified, exact ratios and comparators, buffers, multi-period rules, purification method and evidence. The screen returns `UNVERIFIED` when the provider publishes an unlisted version, an entry is older than `max_age_days`, or an entry is disabled.
 
-The screen returns UNVERIFIED when:
-- the provider publishes a version the registry doesn't list
-- an entry is older than `max_age_days`
-- an entry is disabled
-
-To update it:
-1. Read the provider's new methodology document.
-2. Edit the entry, or add the new version and mark the old one `historical_only`.
-3. Record what you compared in `evidence`. An alternate edition goes in `equivalent_versions` only after every rule has been compared; titles alone are not enough.
-4. Run `run_checks.py`.
-
-The skill never edits this file during a session.
-
-Registry as verified on 2026-11-05:
-
-| Methodology | Version |
+| Methodology | Version in registry (verified 2026-11-05) |
 |---|---|
 | AAOIFI | SS-21 |
 | MSCI Islamic Index Series | May 2025 |
@@ -161,72 +191,123 @@ Registry as verified on 2026-11-05:
 | S&P Shariah | October 2026 (effective 2026-09-21) |
 | Dow Jones Islamic Market | September 2026 (effective 2026-09-18) |
 
+The skill never edits this file during a session. Updates go through a PR; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Safety design
 
-- Every number in a trade plan comes from the scripts, never estimated by the model. An engine error means NO TRADE.
-- **Inputs are validated:** numbers must be finite and positive or non-negative; sector weights must lie between 0 and 1 and total 1; dates can't be in the future or stale.
-- **Caps count everything in a ticker:** each stock or ETF cap includes current holdings, open orders and planned buys in that ticker, plus related share classes.
-- **Stops are checked:** a stop further below any entry than the profile and horizon allow is rejected, and a stop is never lowered after partial profit.
-- **Breakevens include every exit cost** and are rounded up to the cent.
-- A trade stays **provisional** until you confirm the exact order (ticker, type, limit price, shares) in your own app.
-- Screen modes are required arguments, never silently defaulted.
-- Boycott and Shariah verdicts must come from result files that match the ticker, asset type and ISIN, haven't expired, and give the same verdict when recomputed from their recorded evidence or inputs. This is a consistency check, not tamper-proofing.
-- **Freshness is checked against the system clock**, not a date you pass. `--as-of` must be today, a live quote at most 15 minutes old, a delayed quote at most its stated delay (20 minutes max) plus 15 minutes. Anything else is a watchlist entry with a conditional plan. `--now` replays a past moment for research and is never executable.
-- **Levels are tied to the market:** `--market-price` from the same quote is required; an entry more than 1% above it, or a market price at or below the stop, is NO TRADE.
-- **Only a matching limit order confirms a plan**, and a short/medium plan is marked ready only when the stop can be handled (`--stop-orders yes`, or a manual stop the user accepts).
-- **Flag-mode screens without a result file are labelled SCREEN NOT RUN**, never "screened".
-- **Portfolio state is validated:** every working order states buy or sell and a known status (open/partial/filled/cancelled) with consistent whole-share quantities; sell orders reserve no cash and add no exposure, and can't exceed the shares held; sector weights must be valid. Bad state is an error, never silently counted.
-- **Unclassified sector money is worst case:** holdings with no sector data, and any "Unclassified" weight, count against every sector a new buy touches, so missing data can't hide a sector-cap breach.
-- **Cent grid:** every order and level price must be a whole number of cents; off-grid prices are NO TRADE, never rounded.
-- **T-bill funds** need a market price from the same quote too; a limit more than 1% above it is NO TRADE.
-- **ETF boycott weights** must be 0–100%, 100% screened, with excluded + flagged no more than screened.
-- **Sizing is bounded:** prices under $1 are rejected, and the share quantity is found by binary search (checked against the old linear scan on 400 random cases), so a huge account or a low price can't stall it.
-- **Shariah dates are checked twice:** a market-cap date (required for market-cap methodologies, at most 31 days old) and a certificate date (at most 400 days old, with an https link) are re-checked when the trade is sized.
+<details open>
+<summary><b>Numbers and gates</b></summary>
+
+- Every number in a plan comes from the scripts, never from the model. An engine error means NO TRADE.
+- Inputs must be finite and in range; sector weights must lie between 0 and 1 and sum to 1; dates can't be in the future or stale.
+- Caps count everything in a ticker: holdings, open orders, planned buys and related share classes.
+- A stop further below any entry than the profile and horizon allow is rejected. **A stop is never lowered** after taking partial profit.
+- Breakevens include every exit cost and are rounded up to the cent.
+- Every price must be a whole number of cents; off-grid prices are rejected, never rounded.
+- Sizing is bounded: prices under $1 are rejected and share counts are found by binary search.
+</details>
+
+<details>
+<summary><b>Quotes and orders</b></summary>
+
+- Freshness is checked against the **system clock**: a live quote may be at most 15 minutes old; a delayed quote, at most its stated delay (20 minutes max) plus 15 minutes. Anything else gives a WATCHLIST entry with a conditional plan.
+- An entry more than 1% above the quoted market price, or a market price at or below the stop, is NO TRADE.
+- A plan stays **provisional** until you confirm the exact limit order in your own app. Short- and medium-term plans are marked ready only when the stop can be handled (a stop order, or a manual stop you accept).
+</details>
+
+<details>
+<summary><b>Portfolio state</b></summary>
+
+- Every order states buy or sell and a known status (open / partial / filled / cancelled) with consistent whole-share quantities. Sell orders reserve no cash and can't exceed the shares held.
+- Money with no sector data counts as **Unclassified, worst case**: it is checked against every sector a new buy touches, so missing data can't hide a breach.
+- A holding with no stop, or one already past its level, blocks new trades until you fix it in the app.
+</details>
+
+<details>
+<summary><b>Screens</b></summary>
+
+- Screen modes are required arguments, never silently defaulted. A flag-mode screen with no result file is labelled **SCREEN NOT RUN**.
+- Boycott and Shariah verdicts must come from result files that match the ticker, asset type and ISIN, haven't expired, and give the same verdict when recomputed from their recorded inputs. This is a consistency check, not tamper-proofing.
+- Market-cap dates (at most 31 days old) and Shariah certificates (at most 400 days old, with an https link) are re-checked when the trade is sized.
+</details>
+
+<details>
+<summary><b>Privacy and output</b></summary>
+
 - Portfolio state, plans and screening files are git-ignored because they can contain personal holdings.
+- The dashboard loads nothing external and escapes all text, so a headline or ticker string can't inject markup.
+</details>
 
-## Audit status
+## Project structure
 
-v4.5 fixes all six findings from the independent v4.4 code audit (2026-11-05):
+```text
+.
+├── safe-us-stock-trading/            # the skill (this folder is what you install)
+│   ├── SKILL.md                      # instructions Claude follows
+│   └── scripts/
+│       ├── run_checks.py             # one command: files + registries + all tests
+│       ├── size_trade.py             # sizing, fees, gates, exits (price trades and T-bill funds)
+│       ├── portfolio_state.py        # actual vs projected portfolio, orders, risk
+│       ├── fees.py                   # broker cost models
+│       ├── boycott_screen.py         # boycott status computed from per-source evidence
+│       ├── shariah_screen.py         # Shariah screen, result files with provenance
+│       ├── render_simple.py          # plain-language text output
+│       ├── render_dashboard.py       # per-run HTML dashboard
+│       ├── brokers.json              # broker fee profiles and templates
+│       ├── methodologies.json        # Shariah rules registry (versioned, sourced, dated)
+│       └── test_*.py                 # 302 tests
+├── docs/dashboard-preview.png
+├── .github/                          # CI, issue and PR templates
+├── CHANGELOG.md · CONTRIBUTING.md · SECURITY.md · CODE_OF_CONDUCT.md
+└── LICENSE
+```
 
-| Finding | Fix |
-|---|---|
-| H1: a holding with no sector data could hide a sector-cap breach | Counted as Unclassified, which the engine places worst case (in whichever sector the buy touches); also applies to an ETF's own Unclassified weight |
-| H2: T-bill limit price wasn't checked against the market | `--market-price` required (missing → WATCHLIST); limit more than 1% above it → NO TRADE |
-| M1: fractional-cent prices were accepted | Every entry, tranche, stop, target and T-bill limit must be on the cent grid; never rounded |
-| M2: overfilled orders silently disappeared | Whole-number `shares` > 0 and 0 ≤ `filled_shares` ≤ `shares`, consistent with status; otherwise an error |
-| M3: unknown order status treated as open | Status must be open, partial, filled or cancelled; otherwise an error |
-| L1: T-bill confirmation mentioned a stop | T-bill wording says no stop applies and points to rate risk |
+## Testing
 
-Earlier rounds: v4.4 fixed the v4.3 audit (ETF boycott weights, sell orders, state sector weights, bounded sizing); v4.3 the v4.2 follow-up (system-clock quotes, market price, stop capability, flag mode, FX); v4.2 the v4.1 audit.
+```bash
+python3 safe-us-stock-trading/scripts/run_checks.py
+```
 
-| Test file | Tests |
-|---|---|
-| `test_size_trade.py` (unit) | 170 |
-| `test_audit_regressions.py` (v4.1 audit) | 16 |
-| `test_integration.py` | 21 |
-| `test_v42_followup.py` (v4.2 audit, unchanged) | 6 |
-| `test_v43_policy.py` | 31 |
-| `test_v43_independent.py` (v4.3 audit, unchanged) | 5 |
-| `test_v44_hardening.py` | 19 |
-| `test_v44_independent_followup.py` (v4.4 audit) | 6 |
-| `test_v45_hardening.py` | 17 |
-| `test_dashboard.py` (v4.6) | 11 |
-| **Total, all passing** | **302** |
+It prints a JSON report and exits with code 0 only if every file is present, both registries pass schema validation, and every test passes. The skill runs it at the start of each session and drops to **watchlist-only** mode if it fails. CI runs it on Python 3.9 and 3.12 for every push and pull request.
 
-Test setup notes:
-- Fixed-date fixtures run with the engine's clock pinned to 2026-11-05 20:35 UTC, inside the test process only. The command line can't set the clock.
-- The reconstructed header of `test_audit_regressions.py` passes `--market-price` and `--market-cap-date`, both now required.
-- The skill was renamed from `us-portfolio-cfo` (US Portfolio CFO) to `safe-us-stock-trading`. The auditor-supplied `test_v42_followup.py` and `test_v43_independent.py` still mention the old name in their opening comment; they're kept exactly as supplied.
-- The first part of `test_v44_independent_followup.py` didn't arrive. Its header, the sector-cap test and the start of the first T-bill test were rebuilt from the audit report; the rest is the auditor's text, unchanged. It uses the real clock, not a pinned one.
+| Test file | Covers | Tests |
+|---|---|:-:|
+| `test_size_trade.py` | Unit tests for sizing, fees and gates | 170 |
+| `test_audit_regressions.py` | v4.1 independent audit | 16 |
+| `test_integration.py` | Full command-line chain, every asset type | 21 |
+| `test_v42_followup.py` | v4.2 independent audit | 6 |
+| `test_v43_policy.py` | Clock, market price, stop capability, FX, dates | 31 |
+| `test_v43_independent.py` | v4.3 independent audit | 5 |
+| `test_v44_hardening.py` | ETF weights, buy/sell orders, bounded sizing | 19 |
+| `test_v44_independent_followup.py` | v4.4 independent audit | 6 |
+| `test_v45_hardening.py` | Unclassified worst case, cent grid, order states | 17 |
+| `test_dashboard.py` | Verbatim numbers, safety lines, escaping | 11 |
+| **Total** | | **302** |
 
-Still open, and outside what code can settle:
-- **Specialist review:** registry checks validate structure, not whether the Shariah methodology summaries or an issuer's certificate are correct.
-- **Evidence is a research record:** a boycott evidence file records what was found and where; it doesn't prove the source was read correctly.
-- **External confirmation:** methodology versions, data freshness, broker fees, tax treatment and order types.
-- **Supervised paper trading** across several sessions: stale and after-hours quotes, partial fills, cancellations, corporate actions.
+Release history and audit fixes are in [CHANGELOG.md](CHANGELOG.md).
 
-Until you've done the paper trading, treat plans as research and keep confirming every order in your app.
+## Roadmap and known limits
+
+Code can't settle these, so treat every plan as research until they're done:
+
+- [ ] **Specialist review** of the Shariah methodology summaries (the registry checks structure, not correctness)
+- [ ] **Supervised paper trading** across several sessions: stale and after-hours quotes, partial fills, cancellations, corporate actions
+- [ ] **Exchange-rate model**, so non-USD accounts get executable plans (today they get research only)
+- [ ] **More verified broker profiles**: [request yours](https://github.com/kldnajjar/safe-us-stock-trading/issues/new?template=broker_profile.yml)
+- [ ] **Persistent tracker dashboard** (holdings, fills and stops across sessions) built on the per-run dashboard
+
+Boycott evidence files are a record of research: they show what was found and where, not proof that each source was read correctly.
+
+## Contributing
+
+Contributions are welcome, especially broker fee profiles, methodology updates and tests. Start with [CONTRIBUTING.md](CONTRIBUTING.md). The one rule that matters most: **every number comes from tested code, and missing data fails closed.**
+
+Found a way to make a plan look safer than it is? Please [report it privately](SECURITY.md) instead of opening an issue.
+
+## License
+
+[MIT](LICENSE) © 2026 [Khaled Al Najjar](https://www.linkedin.com/in/kldnajjar)
 
 ## Disclaimer
 
-For research and education only. Not investment, tax or religious advice. Fee schedules are user-provided unless marked verified. Methodology summaries may lag provider updates; the registry and fail-safe checks reduce but don't eliminate that risk. Markets can gap through stops, and losses can exceed the planned amount.
+For research and education only. Not investment, tax or religious advice. Fee schedules are user-provided unless marked verified. Methodology summaries may lag provider updates; the registry and fail-safe checks reduce that risk but don't remove it. Markets can gap through stops, and **losses can exceed the planned amount**. The MIT License's "as is", no-warranty terms apply in full.
