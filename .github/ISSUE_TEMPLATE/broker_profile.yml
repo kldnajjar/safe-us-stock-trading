@@ -1,0 +1,23 @@
+name: Broker fee profile
+description: Request or propose fees for a broker / trading app
+labels: [broker]
+body:
+  - type: input
+    id: broker
+    attributes:
+      label: Broker or app name and country
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Public fee page (https)
+    validations:
+      required: true
+  - type: textarea
+    id: schedule
+    attributes:
+      label: Fee schedule
+      description: "Model (percent / per share / flat / zero), rate, minimum, maximum, separate sell fees, FX %, minimum order, account currency, and the date you checked."
+    validations:
+      required: true

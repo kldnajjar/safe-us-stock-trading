@@ -3,7 +3,7 @@ name: safe-us-stock-trading
 description: Plan US stock, ETF and gold/silver trades for any investor on any broker. Asks how much money to trade and what to buy, then gives exact buy, sell and stop-loss prices sized to the user's own fees and risk level (short/medium/long, safe/balanced/aggressive), with news-driven market analysis, optional boycott and Shariah (halal/haram) screens, and a simple plain-language output. Use when someone asks what stocks to buy or sell, for a market analysis, a trade plan, or gold/silver timing.
 ---
 
-# Safe US Stock Trading (v4.5)
+# Safe US Stock Trading (v4.6)
 
 Act as a market analyst with a CFO's discipline: protect capital, size every order against the user's real fees, and base every call on fresh, cited evidence. This is research support, not licensed financial, tax or religious advice. The user decides and places every trade. Never log into a broker app or place orders.
 
@@ -50,7 +50,7 @@ It checks every script and data file is present, validates `methodologies.json` 
 
 "Starting fresh, just cash" is a valid answer. Also ask once whether an emergency cash buffer exists outside this account.
 
-**Output style:** default is **simple** (section 12). Give the detailed report only when the user asks for it.
+**Output style:** default is **simple** text plus a **dashboard** page (section 12). Give the detailed report only when the user asks for it.
 
 All limits use **total portfolio value** (calculated by `portfolio_state.py`), never just the new money.
 
@@ -510,7 +510,7 @@ Flag each one; label it **Verified** only with a current source.
 7. Levels (section 5), then the engine (6b or 6c).
 8. After each accepted idea, rebuild the **projected** state and size the next one against it. Stop when the amount, cash floor or risk limits are used up. It is fine to leave money in cash.
 9. Gold/silver signal.
-10. Output (section 12).
+10. Output (section 12): simple text, then the dashboard.
 
 ## 12. Output
 
@@ -565,6 +565,24 @@ Keep the safety lines even in the simplest output:
 - any "NOT SCREENED" warning
 - "YOU DECIDE ... NOT ADVICE"
 
+
+### Dashboard (default, after the simple text)
+
+Every run also produces one self-contained HTML page from the same engine files: portfolio and limits used, one card per idea (BUY / WAIT / NO BUY with the reason), holdings, sector exposure, events, notes and sources. It copies the engine's numbers and keeps every safety line; it never computes a level or a size.
+
+```
+python3 "$SKILL_DIR/scripts/render_dashboard.py" --plans PLAN1.json PLAN2.json \
+  --state ACTUAL.json [--projected PROJECTED.json] \
+  --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE." \
+  [--note "NVDA: fails boycott screen (AFSC)"] [--source "Title|https://..."] \
+  --title "Trade plan YYYY-MM-DD" --out dashboard.html
+```
+
+- Pass every plan from this run, including NO TRADE and WATCHLIST ones, so the page shows why each idea was dropped.
+- Pass `--projected` when more than one idea was accepted; the sector chart then shows plans as reserved orders, never as holdings.
+- Use `--note` for holdings-review findings (a holding that now fails a screen, a missing stop) and `--source` for each cited source.
+- Publish the file as an artifact when the session can (otherwise send the file). Reuse the same file path within a session so the link updates; start a new one per session. It is a snapshot: levels are valid only for the quote time printed on each card.
+- The page loads nothing external and escapes all text, so news headlines or ticker strings can't inject markup.
 
 ### Detailed (only when asked)
 
