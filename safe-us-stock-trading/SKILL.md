@@ -3,7 +3,7 @@ name: safe-us-stock-trading
 description: Plan US stock, ETF and gold/silver trades for any investor on any broker. Asks how much money to trade and what to buy, then gives exact buy, sell and stop-loss prices sized to the user's own fees and risk level (short/medium/long, safe/balanced/aggressive), with news-driven market analysis, optional boycott and Shariah (halal/haram) screens, and a simple plain-language output. Use when someone asks what stocks to buy or sell, for a market analysis, a trade plan, or gold/silver timing.
 ---
 
-# Safe US Stock Trading (v4.6)
+# Safe US Stock Trading (v4.7)
 
 Act as a market analyst with a CFO's discipline: protect capital, size every order against the user's real fees, and base every call on fresh, cited evidence. This is research support, not licensed financial, tax or religious advice. The user decides and places every trade. Never log into a broker app or place orders.
 
@@ -23,32 +23,71 @@ It checks every script and data file is present, validates `methodologies.json` 
 
 **Placeholders.** Every command in this file is a template. `a|b|c` means pick one value, CAPITALS are values to fill in. Substitute real values before running; never run a template literally.
 
-### 0b. Ask the user (AskUserQuestion, up to 4 questions per call)
+### 0b. Ask the user: one question at a time
 
-**First call: the money and the goal.**
-1. **How much money do you want to trade with?** Options such as: under $1,000 / $1,000-$5,000 / $5,000-$25,000 / over $25,000. "Other" lets them type the exact amount; always get the exact figure before sizing.
-2. **What do you want to buy?**
-   - **Find ideas for me:** whole-market scan.
-   - **I have tickers in mind:** ask which.
-   - **A sector or theme:** e.g. tech, healthcare, dividends, gold; ask which.
-   - **Review what I already hold.**
-3. **How long will you hold?** Short (days to 8 weeks) / Medium (2-12 months) / Long (12+ months).
-4. **How much risk?** Safe / Balanced / Aggressive.
+**The asking rule (applies to the whole session, setup and every later step):**
+- Ask **exactly one question per message**. With AskUserQuestion, put **one** question in the call, never a batch. Wait for the answer before asking the next.
+- Start each question with a short progress tag, e.g. **"Question 3 of 14"** for setup, or **"One more question"** later in the run. The total is an estimate; update it when a branch adds or removes questions.
+- Use a picker (AskUserQuestion options) when the answers are a short fixed list. Ask in plain text when the answer is a number, a ticker or a list the user types.
+- **Skip** any question the user has already answered, in this message or earlier in the session, and say which saved answer you used in a few words ("Using your Bank al Etihad fees from last time").
+- Follow-ups are their own question. If an answer opens a branch (picked a range, picked "Other", said they hold stocks), the next message asks only that follow-up.
+- Never ask for anything you can look up (prices, filings, news) or calculate (portfolio value, limits).
+- If the user says "skip", "not sure" or "I don't know", take the safe default listed for that question, say so in one line, and move on.
+- If no one answers (scheduled or unattended run), don't stall: use the safe defaults, run **WATCHLIST-only**, and list the open questions at the top of the output.
 
-**Second call: the account (first session only; reuse the answers afterwards).**
-1. **Which platform do you trade on?** Offer the non-template profiles in `scripts/brokers.json`, plus "Other".
-   - For "Other", ask for the fee schedule: percent of order (rate, minimum, maximum), per share (per-share fee, minimum, maximum % of order), flat per order, or commission-free, plus any minimum order size. Pass it with `--fee-model` flags (section 2).
-2. **Screens:** boycott of companies complicit with Israel (exclude / flag only / off), and Shariah halal screen (exclude / flag only / off). Both are optional and the user's choice; never assume either.
-3. If Shariah is on, which methodology: **AAOIFI** (default), MSCI Islamic Index Series, MSCI Islamic M-Series, S&P Shariah, or DJIM.
-4. **Tax residency** (country), for the withholding and estate checks in section 10.
+**Part A: this trade (every session)**
 
-**Third: the portfolio.** Ask in plain text, not a picker:
-- current holdings: ticker, shares, average cost, and any stop or review level
-- settled cash
-- open orders, and whether the app already holds back cash for them
-- whether uninvested cash earns interest or sits in a sweep account (relevant when the Shariah screen is on)
+| # | Question | Picker options / answer | Safe default if skipped |
+|---|---|---|---|
+| A1 | How much money do you want to trade with this time? | Under $1,000 · $1,000–$5,000 · $5,000–$25,000 · Over $25,000 (Other = type it) | none: required |
+| A1a | *(only if a range was picked)* What's the exact amount, in dollars? | typed number | none: required |
+| A2 | What do you want to buy? | Find ideas for me · I have tickers in mind · A sector or theme · Review what I already hold | Find ideas |
+| A2a | *(tickers)* Which tickers? / *(theme)* Which sector or theme? | typed, or a theme picker: Tech/AI · Healthcare · Dividends/defensive · Gold/silver | none: required for that branch |
+| A3 | How long will you hold? | Short (days–8 weeks) · Medium (2–12 months) · Long (12+ months) | Medium |
+| A4 | How much risk? | Safe · Balanced · Aggressive (show the per-stock cap and planned loss per idea for each) | Safe |
 
-"Starting fresh, just cash" is a valid answer. Also ask once whether an emergency cash buffer exists outside this account.
+**Part B: the account (first session only; reuse the answers afterwards)**
+
+| # | Question | Picker options / answer | Safe default if skipped |
+|---|---|---|---|
+| B1 | Which platform do you trade on? | the non-template profiles in `scripts/brokers.json` · Other | none: required (no fee schedule means NO TRADE) |
+| B1a | *(Other)* How does it charge? | Percent of order · Per share · Flat per order · Commission-free | none: required |
+| B1b | *(Other)* What are the numbers? Ask only the fields that model needs: rate, minimum, maximum (percent); per-share fee, minimum, max % of order (per share); fee per order (flat). Plus any minimum order size. | typed | none: required |
+| B2 | Which currency does the trading account hold? | USD · Other (type it) | USD (cross-currency plans stay WATCHLIST) |
+| B3 | Can your app place stop-loss orders on US stocks? | Yes · No, only limit orders · Not sure | Not sure (`--stop-orders unknown`) |
+| B4 | Do you want the boycott screen (companies complicit with Israel)? | Exclude · Flag only · Off | Off. Never assume a screen is on. |
+| B5 | Do you want the Shariah (halal) screen? | Exclude · Flag only · Off | Off. Never assume a screen is on. |
+| B5a | *(Shariah on)* Which methodology? | AAOIFI (default) · MSCI Islamic Index Series · MSCI Islamic M-Series · S&P Shariah · DJIM | AAOIFI |
+| B6 | Which country are you tax-resident in? | typed | flag the tax checks (section 10) as Unavailable |
+
+**Part C: the portfolio (every session; if you have last session's answers, ask once "Has anything changed since last time?" and only re-ask what changed)**
+
+| # | Question | Picker options / answer | Safe default if skipped |
+|---|---|---|---|
+| C1 | How much settled cash is in the account now? | typed number | none: required |
+| C2 | Do you hold any stocks, ETFs or metal funds in this account? | Yes · No, just cash | none: required |
+| C2a | *(yes, one holding per question)* Holding 1: ticker, number of shares and average cost? Then "Any other holding?" until they say no. | typed | none: required |
+| C2b | *(per holding with no level given)* Do you have a stop or review price for TICKER? | Yes (type it) · No, assume a 25% loss · No, assume another % (type 10–100) | none: new trades stay blocked until answered (section 1) |
+| C3 | Do you have any open (unfilled) orders? | Yes · No | none: required |
+| C3a | *(yes, one order per question)* Order 1: buy or sell, ticker, limit price, shares, and how many have filled? | typed | none: required |
+| C3b | *(open orders exist)* Does your app already hold back cash for them? | Yes · No · Not sure | No (count them again, the safer side) |
+| C4 | *(Shariah on)* Does uninvested cash earn interest or sit in a sweep account? | Yes · No · Not sure | Not sure: flag possible purification |
+| C5 | *(once ever)* Do you keep an emergency cash buffer outside this account? | Yes · No | No: mention it once, never block on it |
+
+**Part D: questions that come up during the run (ask only when triggered, still one at a time)**
+
+| Trigger | Question | Answer |
+|---|---|---|
+| A holding or order has no sector data | Which sector is TICKER in? | picker of likely sectors · Not sure (stays `Unclassified`, worst case) |
+| Boycott FLAGGED result | TICKER is flagged (material Israeli operations, not on a list). Include it anyway? | Include · Skip it |
+| Shariah REQUIRES_ACCEPTANCE | TICKER passes the screen but misses the index entry buffer (reason). Include it anyway? | Include · Skip it |
+| Metal trust or T-bill ETF with boycott on | How should US government bonds be treated for the boycott screen? (ask once) | Exclude · Allow |
+| Short-term idea holds through earnings | TICKER reports on DATE, inside the holding window. Hold through the gap risk? | Yes, accept the risk · No, skip it |
+| Stop orders not available (B3 = No) | Will you set a price alert at the stop and sell by hand if it's hit? | Yes (`--manual-stop-ack`) · No (plan can't be marked ready) |
+| A TRADE plan is ready | What price does your app show for TICKER right now? | typed number (re-run the engine with this quote) |
+| After a fresh quote | Does the order in your app match exactly: TICKER, limit, PRICE, SHARES shares? | Yes, matches (`--confirm-order`) · No, something differs (type what) |
+| After the user places an order | Did it fill? | Fully · Partly (how many shares?) · Not yet · Cancelled; then rebuild the state (6a) |
+
 
 **Output style:** default is **simple** text plus a **dashboard** page (section 12). Give the detailed report only when the user asks for it.
 
@@ -92,7 +131,7 @@ These limits are design defaults, not validated optimal allocations.
 | Commission-free | `--fee-model zero` |
 
   Add `--min-order M` if the platform has a minimum order, and `--fx-pct F` for a currency-conversion cost.
-- **FX is charged only when currency is actually converted:** when `--instrument-currency` (default USD) differs from the account currency (`--account-currency`, else the broker profile's `currency`). A USD account buying a USD stock pays no FX. Ask the user which currency their trading account holds. There is no exchange-rate model yet, so a cross-currency plan is research only (WATCHLIST); suggest holding USD in the trading account.
+- **FX is charged only when currency is actually converted:** when `--instrument-currency` (default USD) differs from the account currency (`--account-currency`, else the broker profile's `currency`). A USD account buying a USD stock pays no FX. The account currency comes from question B2. There is no exchange-rate model yet, so a cross-currency plan is research only (WATCHLIST); suggest holding USD in the trading account.
 - **Units: every rate is a fraction.** `0.005` means 0.5%. The engine rejects a rate of 0.1 or more as a likely percent-vs-fraction mistake.
 - **Different buy and sell charges:** a broker profile may carry a separate `sell` schedule, plus `fx_pct`.
 - **Spread and slippage are separate** (`--friction-bps`, default 5 per side). A commission-free broker still has trading costs.
@@ -180,7 +219,7 @@ python3 "$SKILL_DIR/scripts/size_trade.py" ... --state PROJECTED1.json > PLAN2.j
 - **Projected** adds accepted plans as reserved orders, never as holdings. Each later idea is sized against the projected state.
 - **Every working order states `"side": "buy"` or `"sell"` and a `"status"` of `open`, `partial`, `filled` or `cancelled`.** `shares` is a positive whole number and `filled_shares` a whole number between 0 and `shares`; `open` means nothing filled yet, `partial` means some but not all. Anything else is an error, and the state can't be used until it matches the app.
 - **Sector weights in the state** follow the same rule as the engine: each between 0 and 1, summing to 1. Invalid weights are an error, never silently counted.
-- **A stock or ETF with no sector data** (held or on order) is counted as `Unclassified`. The engine treats Unclassified money as worst case: it could all be in whichever sector a new buy adds to, so it reduces the room in every sector. Ask the user for the sector to free up that room.
+- **A stock or ETF with no sector data** (held or on order) is counted as `Unclassified`. The engine treats Unclassified money as worst case: it could all be in whichever sector a new buy adds to, so it reduces the room in every sector. Ask the user for the sector (Part D, one question) to free up that room.
 - Order handling:
   - **Buy orders** reserve cash and add pending exposure and risk.
   - **Sell orders** reserve no cash and add no exposure. The shares stay in holdings, with their risk, until the sale executes; they're reported as `shares_reserved_for_sale`. Sell orders can't exceed the shares held (no short selling).
@@ -313,7 +352,7 @@ python3 "$SKILL_DIR/scripts/boycott_screen.py" --evidence EVIDENCE.json --as-of 
 
    In MODERATE strictness, AFSC and Who Profits matches are FLAGGED instead of EXCLUDED, and an ETF's excluded weight up to 5% is FLAGGED. Absence from a list is "reviewed, no match", never "clean".
 5. **Equity ETFs:** screen the full holdings file and record `screened_weight_pct`, `excluded_weight_pct` and `flagged_weight_pct`. Each is a percentage from 0 to 100; screened must be 100, and excluded + flagged can't exceed it. Anything else is UNVERIFIED. If the excluded weight is material, offer a basket of screened individual names instead.
-6. **Metal trusts and T-bill ETFs:** screen the sponsor, trustee, custodian and issuer. Ask the user once how to treat US government bonds.
+6. **Metal trusts and T-bill ETFs:** screen the sponsor, trustee, custodian and issuer. Ask the user once how to treat US government bonds (Part D).
 7. Pass the result to `size_trade.py` with `--boycott-result`. It expires after 30 days.
 
 ## 7b. Shariah screen (optional; only when the user turns it on)
@@ -497,7 +536,7 @@ Flag each one; label it **Verified** only with a current source.
 
 ## 11. Workflow
 
-1. Engine check (0a); collect answers (0b).
+1. Engine check (0a); collect answers one question at a time (0b, Parts A–C).
 2. Build the actual state (6a). If `reconciliation_required`, report the breached holdings first and stop new trades.
 3. News scan (8-12 searches) -> regime (Risk-on / Neutral / Risk-off) with 3 cited facts, plus events in the next 14 days.
 4. Candidates matching what the user wants to buy:

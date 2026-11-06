@@ -4,6 +4,9 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### Changed (v4.7)
+- The whole flow asks **one question per message**: setup (trade, account, portfolio) and every question that comes up during the run (sector, flagged screens, earnings gap risk, manual stop, live price, order match, fills). Each question has a progress tag, picker options where the answers are fixed, a safe default for "not sure", and is skipped when already answered. Unattended runs use the defaults, stay WATCHLIST-only and list the open questions.
+
 ### Added
 - MIT `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue and PR templates.
 - GitHub Actions workflow that runs `run_checks.py` on Python 3.9 (Ubuntu 24.04) and 3.13 (latest Ubuntu) for every push and PR.

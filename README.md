@@ -34,6 +34,7 @@ The result is a plan you can check line by line, sized to **your** broker's fees
 
 | Feature | What it does |
 |---|---|
+| 💬 **One question at a time** | A short guided interview with tap-to-answer options; answered questions are skipped, "not sure" takes a safe default |
 | 🎯 **Exact levels** | Limit buy price, stop-loss (or a review level for long-term holds), two sell targets, share counts and every fee |
 | 💸 **Real costs** | Any broker's fee schedule (percent, per share, flat or commission-free), separate sell fees, FX only when currency is actually converted, plus spread and slippage |
 | 🛡️ **Portfolio-wide limits** | Per-stock and per-ETF caps, sector caps (ETFs looked through), total open risk, cash floor, max positions |
@@ -109,7 +110,7 @@ python3 safe-us-stock-trading/scripts/run_checks.py   # prints "ok": true
 - *"Review my holdings and tell me what to sell."*
 - *"Is now a good time to add gold?"*
 
-The first time, it asks for your platform and fees, which screens you want, your tax residency, and your current holdings, cash and open orders.
+It asks **one question at a time**, with tap-to-answer options where it can: first the trade (amount, what to buy, horizon, risk), then on the first run your platform, fees and screens, then your cash, holdings and open orders. Anything already answered is skipped, and "not sure" falls back to a safe default.
 
 ## How it works
 
