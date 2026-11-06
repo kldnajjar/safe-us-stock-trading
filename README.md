@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 ![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
-![Tests: 302](https://img.shields.io/badge/tests-302%20passing-brightgreen)
+![Tests: 303](https://img.shields.io/badge/tests-303%20passing-brightgreen)
 
 [Quick start](#quick-start) · [What you get](#what-you-get) · [How it works](#how-it-works) · [Configuration](#configuration) · [Safety design](#safety-design) · [Contributing](#contributing)
 
@@ -255,7 +255,7 @@ The skill never edits this file during a session. Updates go through a PR; see [
 │       ├── render_dashboard.py       # per-run HTML dashboard
 │       ├── brokers.json              # broker fee profiles and templates
 │       ├── methodologies.json        # Shariah rules registry (versioned, sourced, dated)
-│       └── test_*.py                 # 302 tests
+│       └── test_*.py                 # 303 tests
 ├── docs/dashboard-preview.png
 ├── .github/                          # CI, issue and PR templates
 ├── CHANGELOG.md · CONTRIBUTING.md · SECURITY.md · CODE_OF_CONDUCT.md
@@ -268,7 +268,7 @@ The skill never edits this file during a session. Updates go through a PR; see [
 python3 safe-us-stock-trading/scripts/run_checks.py
 ```
 
-It prints a JSON report and exits with code 0 only if every file is present, both registries pass schema validation, and every test passes. The skill runs it at the start of each session and drops to **watchlist-only** mode if it fails. CI runs it on Python 3.9 and 3.12 for every push and pull request.
+It prints a JSON report and exits with code 0 only if every file is present, both registries pass schema validation, and every test passes. The skill runs it at the start of each session and drops to **watchlist-only** mode if it fails. CI runs it on Python 3.9 (Ubuntu 24.04) and 3.13 (latest Ubuntu) for every push and pull request.
 
 | Test file | Covers | Tests |
 |---|---|:-:|
@@ -281,8 +281,8 @@ It prints a JSON report and exits with code 0 only if every file is present, bot
 | `test_v44_hardening.py` | ETF weights, buy/sell orders, bounded sizing | 19 |
 | `test_v44_independent_followup.py` | v4.4 independent audit | 6 |
 | `test_v45_hardening.py` | Unclassified worst case, cent grid, order states | 17 |
-| `test_dashboard.py` | Verbatim numbers, safety lines, escaping | 11 |
-| **Total** | | **302** |
+| `test_dashboard.py` | Verbatim numbers, safety lines, escaping | 12 |
+| **Total** | | **303** |
 
 Release history and audit fixes are in [CHANGELOG.md](CHANGELOG.md).
 

@@ -82,6 +82,21 @@ class Dashboard(unittest.TestCase):
         page = rd.render([{"verdict": "NO TRADE", "reasons": ["engine error"]}])
         self.assertIn("engine error", page)
 
+    def test_holding_without_stop_or_breached(self):
+        """Regression: portfolio_state reports downside as a string for these; the page must not crash."""
+        st = dict(cash=21000, cash_includes_open_orders=False, orders=[],
+                  holdings=[dict(ticker="NVDA", asset="stock", shares=10, avg_cost=200, price=200, level=None,
+                                 level_type="none", sector_weights={"Tech": 1}),
+                            dict(ticker="XYZ", asset="stock", shares=5, avg_cost=50, price=40, level=45,
+                                 level_type="hard", sector_weights={"Tech": 1})])
+        state = ps.build(st, fee=ti.FEE)
+        page = rd.render([self.no], state)
+        self.assertIn("NO STOP: real risk unknown", page)
+        self.assertIn("UNQUANTIFIED", page)
+        self.assertIn("BREACHED", page)
+        self.assertGreaterEqual(page.count("CHECK</span>"), 2)
+        self.assertIn("No new trades until", page)
+
     def test_cli_writes_file(self):
         files = [ti.jfile(x, self.tmp) for x in (self.trade, self.state)]
         out = os.path.join(self.tmp, "d.html")

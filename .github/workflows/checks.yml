@@ -9,14 +9,19 @@ permissions:
 
 jobs:
   run-checks:
-    runs-on: ubuntu-latest
+    # ubuntu-latest is Ubuntu 26.04 (from 2026-10-19), which has no Python 3.9 build,
+    # so the oldest supported Python runs on 24.04 and the newest on latest.
+    name: run-checks (py${{ matrix.python }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.9", "3.12"]
+        include:
+          - { os: ubuntu-24.04, python: "3.9" }
+          - { os: ubuntu-latest, python: "3.13" }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - name: Files, registries and all tests
