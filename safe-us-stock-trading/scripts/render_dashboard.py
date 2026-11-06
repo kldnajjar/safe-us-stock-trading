@@ -68,12 +68,21 @@ def e(x):
     return html.escape("" if x is None else str(x), quote=True)
 
 
+def _num(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
 def money(x):
-    return "n/a" if x is None else f"${x:,.2f}"
+    """Numbers as $1,234.56; engine status strings (e.g. UNQUANTIFIED, BREACHED: ...) shown as-is."""
+    if x is None:
+        return "n/a"
+    return f"${x:,.2f}" if _num(x) else str(x).split(":")[0]
 
 
 def px(x):
-    return "n/a" if x is None else f"{x:,.2f}"
+    if x is None:
+        return "n/a"
+    return f"{x:,.2f}" if _num(x) else str(x).split(":")[0]
 
 
 def get(d, *path):
@@ -216,9 +225,12 @@ def tiles(plans, state):
                     f"floor kept {money(cash.get('cash_floor'))} · on order {money(cash.get('unfilled_commitments'))}",
                     None))
     used = a.get("executable_stop_downside")
+    unknown = len(a.get("unquantified") or []) + len(a.get("breached") or [])
     if used is not None and lim.get("open_risk_room") is not None:
-        out.append(("Open risk at stops", money(used), f"room left {money(lim['open_risk_room'])} (before new buys)",
-                    (used, used + lim["open_risk_room"])))
+        sub = f"room left {money(lim['open_risk_room'])} (before new buys)"
+        if unknown:
+            sub = f"+ {unknown} holding(s) with NO STOP: real risk unknown · " + sub
+        out.append(("Open risk at stops", money(used), sub, (used, used + lim["open_risk_room"])))
     if lim.get("risk_budget_per_idea") is not None:
         out.append(("Loss budget per idea", money(lim["risk_budget_per_idea"]),
                     f"max per stock {money(lim.get('position_cap_total'))} · stop ≤ {e(lim.get('max_stop_distance_pct'))}%",
@@ -242,7 +254,7 @@ def holdings_table(state):
     body = ""
     for r in rows:
         t = r.get("ticker")
-        flag = ' <span class="badge bad">CHECK</span>' if t in bad else ""
+        flag = ' <span class="badge bad">CHECK</span>' if t in bad or not _num(r.get("downside")) else ""
         body += (f"<tr><td>{e(t)}{flag}</td><td>{e(r.get('asset'))}</td><td>{money(r.get('market_value'))}</td>"
                  f"<td>{money(r.get('unrealized_pnl'))}</td><td>{money(r.get('downside'))}</td>"
                  f"<td>{e(r.get('downside_type'))}</td></tr>")
