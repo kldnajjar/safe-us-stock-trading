@@ -46,6 +46,8 @@ NO BUY XYZ: boycott screen: excluded
 YOU DECIDE. YOU PLACE ORDER. NOT ADVICE.
 ```
 
+- **Dashboard every run:** `render_dashboard.py` turns the same engine files into one self-contained HTML page (portfolio, limits used, BUY / WAIT / NO BUY cards with reasons, holdings, sector exposure, sources), light and dark, phone-friendly. Numbers are copied from the engine, never recomputed.
+
 ## Repository layout
 
 ```
@@ -63,6 +65,7 @@ YOU DECIDE. YOU PLACE ORDER. NOT ADVICE.
         ├── boycott_screen.py      # boycott screen: status computed from per-source evidence
         ├── fees.py                # broker cost models
         ├── render_simple.py       # plain-language output, numbers copied from the engine
+        ├── render_dashboard.py    # per-run HTML dashboard, numbers copied from the engine
         ├── methodologies.json     # Shariah rules registry (versioned, sourced, dated)
         ├── brokers.json           # broker fee profiles and templates
         ├── test_size_trade.py     # unit tests
@@ -73,6 +76,7 @@ YOU DECIDE. YOU PLACE ORDER. NOT ADVICE.
         ├── test_v44_hardening.py  # ETF weights, buy/sell orders, state weights, bounded sizing (randomized)
         ├── test_v44_independent_followup.py  # 6 independent audit tests (v4.4 audit)
         ├── test_v45_hardening.py  # worst-case Unclassified (randomized), cent grid, T-bill market, order states
+        ├── test_dashboard.py      # dashboard: verbatim numbers, safety lines, escaping, self-contained
         └── test_integration.py    # full command-line chain across every asset type
 ```
 
@@ -206,7 +210,8 @@ Earlier rounds: v4.4 fixed the v4.3 audit (ETF boycott weights, sell orders, sta
 | `test_v44_hardening.py` | 19 |
 | `test_v44_independent_followup.py` (v4.4 audit) | 6 |
 | `test_v45_hardening.py` | 17 |
-| **Total, all passing** | **291** |
+| `test_dashboard.py` (v4.6) | 11 |
+| **Total, all passing** | **302** |
 
 Test setup notes:
 - Fixed-date fixtures run with the engine's clock pinned to 2026-11-05 20:35 UTC, inside the test process only. The command line can't set the clock.
