@@ -21,6 +21,13 @@ state*.json
 plan*.json
 screen*.json
 *.local.json
+JOURNAL*.json
+journal*.json
+LEDGER*.json
+SOURCES_CHECK*.json
+SIG_*.json
+BOYCOTT_*.json
+EVIDENCE*.json
 
 # Local broker profiles with personal fee schedules (keep brokers.json for shared templates)
 brokers.local.json

@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Simple ("caveman") output for the safe-us-stock-trading skill (v4.3).
+"""Simple ("caveman") output for the safe-us-stock-trading skill (v4.8).
 
 Short plain lines. Every number is copied from the engine JSON; nothing is recomputed.
+v4.8: every NO BUY and WAIT prints ALL its reasons in plain words, what to do about each,
+and the engine's full reason text; every plan prints the sources it was built on.
 
   python3 render_simple.py --plans PLAN1.json PLAN2.json \
       [--market "MARKET CALM. FED WAIT."] [--metals "GOLD WAIT."] [--events "JOBS FRI. CPI TUE."]
 """
-import argparse, json, sys
+import argparse, json, os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from portfolio_state import plan_is_trade  # noqa: E402
 
 
 def money(x):
@@ -24,7 +29,7 @@ def short_reason(r):
 
 def halal_line(sh):
     if not sh or sh.get("mode") == "off":
-        return []
+        return ["  HALAL: NOT CHECKED. SCREEN WAS OFF."]
     if sh.get("screened") is False:
         return ["  HALAL: NOT CHECKED. SCREEN NOT RUN."]
     word = {"PERMITTED": "OK", "REQUIRES_ACCEPTANCE": "YOU MUST OK", "EXCLUDED": "NO",
@@ -41,7 +46,7 @@ def halal_line(sh):
 
 def boycott_line(b):
     if not b or b.get("mode") == "off":
-        return []
+        return ["  BOYCOTT: NOT CHECKED. SCREEN WAS OFF."]
     if b.get("screened") is False:
         return ["  BOYCOTT: NOT CHECKED. SCREEN NOT RUN."]
     word = {"reviewed_no_match": "NOT ON LISTS", "flagged": "FLAGGED (YOU OK'D)",
@@ -58,6 +63,207 @@ def quote_line(d):
         status += f" {q['delay_min']}M"
     mp = f" PRICE {px(q['market_price'])}" if q.get("market_price") is not None else ""
     return [f"  PRICE SEEN {q['time']} ({status}, {q.get('source') or 'SOURCE?'}){mp}. GOOD ONLY FOR THIS PRICE."]
+
+
+# v4.8: plain-language reasons. (pattern in the engine text, lower case) -> (why, what to do)
+EXPLAIN = [
+    # specific patterns first: explain() stops at the first match
+    ("edited file?", "THIS PLAN FILE WAS CHANGED AFTER THE ENGINE MADE IT.", "RUN THE ENGINE AGAIN. NEVER EDIT PLAN FILES."),
+    ("does not match a recomputation from its own prices", "SIGNALS FILE WAS CHANGED AFTER IT WAS MADE.",
+     "RUN SIGNALS AGAIN. NEVER EDIT IT."),
+    ("no usable recorded prices", "SIGNALS FILE HAS NO PRICES INSIDE (OLD OR EDITED).", "RUN SIGNALS AGAIN."),
+    ("after today: wrong price file", "PRICE FILE HAS FUTURE DATES.", "USE THE REAL PRICE HISTORY."),
+    ("a company is a stock", "THIS IS A COMPANY, NOT A GOLD/SILVER OR T-BILL FUND.", "PLAN IT AS A STOCK."),
+    ("before today's open", "PRICE IS FROM BEFORE TODAY'S OPEN.", "GET A PRICE FROM TODAY'S SESSION."),
+    ("holiday list not loaded", "MARKET HOLIDAYS FOR THIS YEAR NOT LOADED.", "UPDATE THE NYSE CALENDAR (MAINTAINER)."),
+    ("earliest earnings date", "EARNINGS DATE GIVEN IS NOT THE EARLIEST ONE ON RECORD.", "USE THE EARLIEST RECORDED DATE."),
+    ("portfolio state error", "YOUR HOLDINGS DATA HAS AN ERROR.", "CHECK HOLDINGS AND ORDERS AGAINST YOUR APP."),
+    ("does not match the earnings date in the source ledger", "EARNINGS DATE GIVEN DOESN'T MATCH THE RECORDED SOURCE.",
+     "USE THE DATE FROM THE SOURCE."),
+    ("earnings date not recorded in the source ledger", "EARNINGS DATE HAS NO SOURCE.",
+     "RECORD WHERE THE DATE CAME FROM, THEN PLAN AGAIN."),
+    ("signals file price", "PRICE FILE LOOKS WRONG (FAR FROM TODAY'S PRICE).", "CHECK IT IS THIS TICKER'S PRICES. RUN SIGNALS AGAIN."),
+    ("signals not run", "TREND NOT CHECKED. SHORT TRADES NEED IT.", "RUN SIGNALS WITH A YEAR OF PRICES."),
+    ("signals unknown", "NOT ENOUGH PRICE HISTORY FOR THE TREND CHECK.", "GET A YEAR OF PRICES, OR PLAN MEDIUM/LONG TERM."),
+    ("at or below its stop/review level", "A HOLDING IS ALREADY AT OR UNDER ITS STOP.", "SORT THAT HOLDING FIRST."),
+    ("metals allocation cap", "GOLD/SILVER LIMIT FOR YOUR RISK LEVEL IS USED UP.", "NONE. ENOUGH METALS."),
+    ("--sector-weights is required", "SECTOR DATA MISSING.", "GIVE THE SECTOR (OR ETF SECTOR WEIGHTS)."),
+    ("--as-of (today's date) is required", "TODAY'S DATE MISSING.", "RUN AGAIN WITH TODAY'S DATE."),
+    ("signals say avoid", "PRICE TREND IS DOWN (SIGNALS SAY AVOID).", "WAIT UNTIL PRICE IS BACK ABOVE ITS 200-DAY AVERAGE."),
+    ("signals say caution", "TREND IS WEAK. NO SHORT-TERM BUY.", "WAIT, OR PLAN IT AS MEDIUM/LONG TERM."),
+    ("signals file", "SIGNALS FILE IS WRONG OR FOR ANOTHER TICKER.", "RUN SIGNALS AGAIN FOR THIS TICKER."),
+    ("re-run signals.py", "SIGNALS USE OLD PRICES.", "RUN SIGNALS AGAIN WITH TODAY'S PRICES."),
+    ("inside the short-term holding window", "EARNINGS COME BEFORE THIS SHORT TRADE WOULD END.",
+     "WAIT UNTIL AFTER EARNINGS, OR SAY YOU ACCEPT THE JUMP RISK."),
+    ("next earnings date not given", "NEXT EARNINGS DATE NOT CHECKED.", "LOOK UP THE EARNINGS DATE."),
+    ("has passed: look up the next one", "EARNINGS DATE IS OLD.", "LOOK UP THE NEXT EARNINGS DATE."),
+    ("fees and spread take", "FEES EAT TOO MUCH OF THE PROFIT FOR A SHORT TRADE.",
+     "HOLD LONGER WITH A BIGGER TARGET, OR SKIP."),
+    ("screen is mandatory", "SCREEN WAS SET TO OFF. BOYCOTT AND HALAL CHECKS ALWAYS RUN.",
+     "RUN BOTH SCREENS, THEN PLAN AGAIN."),
+    ("screen not run", "SCREEN NOT DONE YET FOR THIS TICKER.", "RUN THE SCREEN, THEN PLAN AGAIN."),
+    ("boycott screen: excluded", "COMPANY IS ON A BOYCOTT LIST.", "NONE. SKIP IT."),
+    ("boycott screen: unverified", "BOYCOTT CHECK NOT COMPLETE (A SOURCE MISSING, OLD OR DOWN).",
+     "CHECK ALL 5 BOYCOTT SOURCES AGAIN."),
+    ("boycott screen: flagged", "BOYCOTT: FLAGGED (ISRAEL OPERATIONS IN ITS FILINGS). YOU HAVE NOT SAID OK.",
+     "SAY OK TO ACCEPT IT, OR SKIP IT."),
+    ("interest-bearing", "T-BILL FUND PAYS INTEREST. NOT HALAL.", "KEEP CASH, OR USE A CERTIFIED SUKUK FUND."),
+    ("shariah screen: excluded", "NOT HALAL UNDER YOUR METHOD.", "NONE. SKIP IT."),
+    ("shariah screen: unverified", "HALAL CHECK NOT COMPLETE (DATA MISSING, OLD, OR FOR ANOTHER SECURITY).",
+     "GET THE LATEST 10-Q/10-K NUMBERS AND RE-SCREEN."),
+    ("shariah screen: requires acceptance", "HALAL: BORDERLINE (NEAR A LIMIT). YOU HAVE NOT SAID OK.",
+     "SAY OK TO ACCEPT IT, OR SKIP IT."),
+    ("--isin is required", "NO ISIN. SCREEN CAN'T BE MATCHED TO THIS SECURITY.", "GIVE THE ISIN."),
+    ("sources not checked", "SOURCES NOT CHECKED.", "RUN THE SOURCE CHECK."),
+    ("sources not fresh or incomplete", "SOME DATA IS OLD, MISSING, OR SOURCES DISAGREE.",
+     "RE-READ THE SOURCES LISTED BELOW, THEN PLAN AGAIN."),
+    ("source check unreadable", "SOURCE CHECK FILE IS BROKEN.", "RUN THE SOURCE CHECK AGAIN."),
+    ("net reward:risk", "PROFIT TOO SMALL FOR THE RISK.", "WAIT FOR A LOWER PRICE. DON'T FORCE IT."),
+    ("stop is", "STOP TOO FAR BELOW THE BUY PRICE FOR YOUR RISK LEVEL.", "WAIT FOR A PRICE NEARER SUPPORT."),
+    ("is more than 1% above the market", "BUY PRICE TOO FAR ABOVE TODAY'S PRICE.", "PLAN A NEW ENTRY."),
+    ("at or below the stop", "PRICE ALREADY AT OR UNDER THE STOP. SETUP BROKEN.", "NONE. SKIP IT."),
+    ("levels must satisfy", "PRICES DON'T MAKE SENSE (STOP < BUY < TARGET).", "FIX THE LEVELS."),
+    ("t1 must be", "FIRST TARGET IS ABOVE SECOND TARGET.", "FIX THE TARGETS."),
+    ("one-cent grid", "A PRICE IS NOT IN WHOLE CENTS.", "USE CENT PRICES."),
+    ("sub-penny", "PRICE UNDER $1. NOT SUPPORTED.", "NONE. SKIP IT."),
+    ("prices under", "PRICE UNDER $1. NOT SUPPORTED.", "NONE. SKIP IT."),
+    ("unquantified risk", "A HOLDING HAS NO STOP OR REVIEW LEVEL, SO ITS RISK IS UNKNOWN.",
+     "SET A STOP FOR IT, OR AGREE A LOSS % FOR IT."),
+    ("breached", "A HOLDING IS ALREADY UNDER ITS STOP.", "SORT THAT HOLDING FIRST."),
+    ("maximum number of", "TOO MANY POSITIONS ALREADY.", "SELL ONE FIRST, OR SKIP."),
+    ("open-risk limit", "TOTAL RISK ON OPEN POSITIONS IS ALREADY AT YOUR LIMIT.", "WAIT, OR TIGHTEN OTHER STOPS."),
+    ("sector cap", "TOO MUCH MONEY IN THIS SECTOR ALREADY.", "PICK ANOTHER SECTOR."),
+    ("position cap", "YOU ALREADY HOLD AS MUCH OF THIS AS YOUR RISK LEVEL ALLOWS.", "NONE. ENOUGH OF IT."),
+    ("cash floor", "NOT ENOUGH CASH AFTER THE SAFETY CASH AND OPEN ORDERS.", "ADD CASH OR WAIT FOR FILLS."),
+    ("no whole-share quantity", "NOT EVEN 1 SHARE FITS YOUR LIMITS AND FEES.", "SKIP, OR USE A CHEAPER FUND."),
+    ("fees and spread exceed", "FEES EAT ALL THE INCOME.", "KEEP IT AS CASH."),
+    ("fee schedule", "NO FEE SCHEDULE FOR YOUR PLATFORM.", "GIVE YOUR PLATFORM'S FEES."),
+    ("sector weights", "SECTOR DATA MISSING OR WRONG.", "GIVE THE SECTOR (OR ETF SECTOR WEIGHTS)."),
+    ("sector weight", "SECTOR DATA MISSING OR WRONG.", "GIVE THE SECTOR (OR ETF SECTOR WEIGHTS)."),
+    ("nyse is closed", "US MARKET IS CLOSED NOW. PRICES CAN JUMP BEFORE THE OPEN.",
+     "RUN AGAIN WHEN THE MARKET IS OPEN, WITH A FRESH PRICE."),
+    ("quote status", "NO LIVE PRICE (MARKET CLOSED OR OLD PRICE).", "GET A LIVE PRICE, RUN AGAIN."),
+    ("quote is", "PRICE IS TOO OLD.", "GET A FRESH PRICE, RUN AGAIN."),
+    ("quote time", "PRICE TIME MISSING OR WRONG.", "GET A FRESH PRICE WITH ITS TIME."),
+    ("delayed quote", "DELAYED PRICE WITHOUT A STATED DELAY.", "GET A LIVE PRICE."),
+    ("no --market-price", "NO MARKET PRICE TO CHECK THE BUY PRICE AGAINST.", "GET A FRESH PRICE."),
+    ("is not today", "DATE IS NOT TODAY.", "RUN AGAIN TODAY."),
+    ("replay", "THIS IS A REPLAY OF A PAST DAY. RESEARCH ONLY.", "RUN ON A LIVE PRICE."),
+    ("account currency differs", "YOUR ACCOUNT IS NOT IN USD. NO FX MODEL YET.", "HOLD USD IN THE ACCOUNT."),
+    ("invalid input", "A NUMBER IS MISSING OR WRONG.", "CHECK THE INPUTS."),
+    ("is required", "A NEEDED NUMBER IS MISSING.", "GIVE THE MISSING NUMBER."),
+    ("engine error", "THE ENGINE FAILED. NO TRADE FOR SAFETY.", "RUN THE ENGINE CHECK."),
+]
+
+
+def explain(reason):
+    low = (reason or "").lower()
+    for pat, why, fix in EXPLAIN:
+        if pat in low:
+            return why, fix
+    return None, None
+
+
+def detail_lines(d, reason):
+    """Extra facts behind a screen reason: which boycott lists matched, why not halal."""
+    low = reason.lower()
+    out = []
+    if low.startswith("boycott screen"):
+        b = d.get("boycott") or {}
+        hits = [k.upper() for k, v in (b.get("sources_checked") or {}).items() if v.get("finding") == "match"]
+        if hits:
+            out.append(f"    FOUND ON: {', '.join(hits)}")
+        out += [f"    - {r}" for r in (b.get("reasons") or [])[:4]]
+    if low.startswith("shariah screen"):
+        sh = d.get("shariah") or {}
+        if sh.get("methodology"):
+            out.append(f"    METHOD: {sh['methodology']}")
+        out += [f"    - {r}" for r in (sh.get("reasons") or [])[:4]]
+    if low.startswith("sources not fresh"):
+        out += [f"    - {p}" for p in ((d.get("sources") or {}).get("problems") or [])[:6]]
+    return out
+
+
+def _one(d, r, label="WHY"):
+    why, fix = explain(r)
+    out = [f"  {label}: {why or r.upper()}"] + detail_lines(d, r)
+    if fix:
+        out.append(f"  FIX: {fix}")
+    if why:
+        out.append(f"  (ENGINE: {r})")
+    return out
+
+
+def reason_block(d):
+    reasons = d.get("reasons") or ["no reason given by the engine"]
+    out = []
+    for r in reasons:
+        out += _one(d, r)
+    if d.get("verdict") == "NO TRADE":
+        for r in d.get("also_needed") or []:      # v4.8: what would still be missing once the above is fixed
+            out += _one(d, r, label="ALSO NEEDED")
+    return out
+
+
+def _short_time(s):
+    return (s or "?").replace("T", " ")[:16]
+
+
+def sources_lines(d):
+    s = d.get("sources") or {}
+    if not s.get("checked"):
+        return ["  !! SOURCES NOT CHECKED. DON'T TRUST THESE NUMBERS YET. !!"]
+    out = []
+    by = {}
+    for it in s.get("ticker_items") or []:
+        by.setdefault(it.get("category"), []).append(it)
+    q = by.get("quote") or []
+    if q:
+        match = "MATCH" if len(q) > 1 and all(x.get("status") == "FRESH" for x in q) else (
+            "ONE SOURCE ONLY" if len(q) == 1 else "CHECK")
+        out.append("  PRICE FROM: " + " + ".join(f"{x.get('source_name')} {_short_time(x.get('observed_at'))}"
+                                                 for x in q) + f" ({match})")
+    for cat, label in (("fundamentals", "NUMBERS FROM"), ("price_history", "CHART DATA FROM"),
+                       ("consensus", "ANALYSTS FROM"), ("fund_holdings", "FUND HOLDINGS FROM")):
+        for x in by.get(cat) or []:
+            extra = f" {x.get('form')} FILED {x.get('published_at')}" if cat == "fundamentals" else (
+                f" {x.get('published_at')}" if x.get("published_at") else f" READ {_short_time(x.get('observed_at'))}")
+            out.append(f"  {label}: {x.get('source_name')}{extra}")
+    if not s.get("ok"):
+        out.append("  !! SOME SOURCES OLD OR MISSING. SEE WHY. !!")
+    return out
+
+
+def market_sources(plans):
+    seen, out = set(), []
+    for d in plans:
+        for it in (d.get("sources") or {}).get("market_items") or []:
+            key = it.get("url")
+            if key in seen:
+                continue
+            seen.add(key)
+            when = it.get("published_at") or _short_time(it.get("observed_at"))
+            tier = {1: "OFFICIAL", 2: "NEWS", 3: "DATA SITE"}.get(it.get("tier"), "?")
+            out.append(f"- {it.get('source_name')} [{tier}] {when}: {it.get('what') or it.get('category')} "
+                       f"{it.get('url')}")
+    checked = next(((d.get("sources") or {}).get("checked_at") for d in plans if (d.get("sources") or {}).get("checked")),
+                   None)
+    if not out:
+        return []
+    return [f"SOURCES (CHECKED {_short_time(checked)} UTC):"] + out
+
+
+def screen_source_line(d):
+    b, sh = d.get("boycott") or {}, d.get("shariah") or {}
+    parts = []
+    dates = sorted(v.get("checked_on") for v in (b.get("sources_checked") or {}).values() if v.get("checked_on"))
+    if dates:
+        parts.append(f"BOYCOTT LISTS CHECKED {dates[0]}" + (f" TO {dates[-1]}" if dates[-1] != dates[0] else ""))
+    if sh.get("data_published"):
+        parts.append(f"HALAL DATA {sh.get('period')} FILED {sh['data_published']}")
+        if sh.get("market_cap_date"):
+            parts.append(f"MARKET CAP {sh['market_cap_date']}")
+    return [f"  SCREEN DATA: {'. '.join(parts)}."] if parts else []
 
 
 def render_trade(d, header=None):
@@ -89,8 +295,29 @@ def render_trade(d, header=None):
         out.append(line)
     else:
         out.append(f"  SELL ALL AT {px(d['t1_level'])}  PROFIT {money(d['net_profit_full_exit_t1'])} (AFTER FEES)")
-    out += halal_line(d.get("shariah")) + boycott_line(d.get("boycott"))
-    out += quote_line(d)
+    src = (d.get("assumptions") or {}).get("fee_schedule")
+    if src and src != "verified":
+        out.append(f"  FEE SCHEDULE: {str(src).upper()}, NOT VERIFIED. CHECK FEES IN YOUR APP.")
+    fc = d.get("fee_check") or {}
+    if fc:
+        out.append(f"  FEES: {money(fc['round_trip_costs_at_t1'])} IN AND OUT = {fc['costs_pct_of_gross_profit']:g}% "
+                   f"OF PROFIT AT FIRST TARGET")
+    dv = d.get("dividend") or {}
+    if dv.get("net_yield_pct") is not None:
+        out.append(f"  DIVIDEND: {dv['gross_yield_pct']:.2f}% -> {dv['net_yield_pct']:.2f}% AFTER "
+                   f"{dv['withholding_pct']:g}% US TAX (ABOUT {money(dv['est_annual_net'])} A YEAR)")
+    ea = d.get("earnings") or {}
+    if ea.get("date"):
+        out.append(f"  EARNINGS: {ea['date']} ({ea.get('days_away')} DAYS)"
+                   + (". PRICE CAN JUMP PAST THE STOP." if ea.get("inside_window") else "."))
+    sg = d.get("signals") or {}
+    if sg.get("checked"):
+        out.append(f"  TREND: {sg.get('hint')}" + (f" ({'; '.join(sg.get('flags') or [])})".upper() if sg.get("flags") else ""))
+    else:
+        out.append("  TREND: NOT CHECKED (NO SIGNALS RUN).")
+
+    out += halal_line(d.get("shariah")) + boycott_line(d.get("boycott")) + screen_source_line(d)
+    out += quote_line(d) + sources_lines(d)
     if header:
         out.append("  NOT READY. GET LIVE PRICE. RUN AGAIN.")
     elif str(d.get("placement_status", "")).startswith("ready"):
@@ -118,14 +345,42 @@ def render_tbill(d):
             f"  SHARES {d['shares']}  COST {money(d['order_value'] + d['buy_fee'])}",
             f"  EARN ABOUT {money(d['expected_net_return'])} AFTER FEES (GUESS, NOT PROMISE)",
             f"  NEED {d['breakeven_holding_days']} DAYS JUST TO PAY FEES",
-            "  CHECK PRICE IN APP FIRST."] + quote_line(d)
+            "  CHECK PRICE IN APP FIRST."] + boycott_line(d.get("boycott")) + quote_line(d) + sources_lines(d)
 
 
-def render(plans, market="", metals="", events=""):
+def signal_no_buys(signals, planned):
+    """v4.8: tickers dropped by the signals (151 Trading Strategies filters) still get a NO BUY with the why."""
+    out = []
+    for sg in signals or []:
+        t = str(sg.get("ticker", "?")).upper()
+        if t in planned or sg.get("hint") != "AVOID":
+            continue
+        out.append(f"NO BUY {t}")
+        for f in sg.get("flags") or ["signals say avoid"]:
+            out.append(f"  WHY: {f.upper()}.")
+        out.append("  FIX: WAIT UNTIL PRICE IS BACK ABOVE ITS 200-DAY AVERAGE.")
+        out.append(f"  (SIGNALS: price {sg.get('price')}, 200-day avg {(sg.get('sma') or {}).get('ma200')}, "
+                   f"12-1 month return {sg.get('momentum_12_1')}, data through {sg.get('history_through')})")
+        out.append("")
+    return out
+
+
+def render(plans, market="", metals="", events="", signals=None):
     lines = []
     first = next((d for d in plans if d.get("profile")), None)
     if first:
         lines.append(f"RISK: {str(first.get('profile')).upper()}. HOLD: {str(first.get('horizon') or 'n/a').upper()}.")
+    mc = next((d.get("market_clock") for d in plans if d.get("market_clock")), None)
+    if mc:
+        if mc.get("open"):
+            line = f"NYSE: OPEN. CLOSES {mc.get('closes')} NEW YORK TIME"
+            line += " (EARLY CLOSE TODAY)." if mc.get("early_close") else "."
+        else:
+            line = (f"NYSE: CLOSED ({str(mc.get('reason', '')).upper()}). "
+                    f"NEXT OPEN {mc.get('next_open_new_york', '?')} NEW YORK TIME.")
+        lines.append(line)
+        if mc.get("warning"):
+            lines.append("  !! HOLIDAY LIST NOT LOADED FOR THIS YEAR. CHECK NYSE.COM. !!")
     if market:
         lines.append(f"MARKET: {market.upper()}")
     if metals:
@@ -138,22 +393,32 @@ def render(plans, market="", metals="", events=""):
     for d in plans:
         t = (d.get("ticker") or d.get("asset", "?")).upper()
         v = d.get("verdict")
+        if v == "TRADE" and not plan_is_trade(d):
+            d = dict(d, verdict="NO TRADE", reasons=list(d.get("reasons") or []) +
+                     ["plan says TRADE but carries reasons or is not placeable (edited file?): re-run the engine"])
+            v = "NO TRADE"
         if v == "TRADE":
             buys += (render_tbill(d) if d.get("asset") == "tbill" else render_trade(d)) + warning_lines(d) + [""]
         elif v == "WATCHLIST" and d.get("tranches"):
-            head = f"WAIT {t}: {short_reason((d.get('reasons') or [''])[0])}"
-            waits += render_trade(d, header=head + "\n  IF READY LATER, PLAN IS:") + warning_lines(d) + [""]
+            head = "\n".join([f"WAIT {t}"] + reason_block(d) + ["  IF READY LATER, PLAN IS:"])
+            waits += render_trade(d, header=head) + warning_lines(d) + [""]
         elif v == "WATCHLIST":
-            waits.append(f"WAIT {t}: {short_reason((d.get('reasons') or [''])[0])}")
+            waits += [f"WAIT {t}"] + reason_block(d) + sources_lines(d) + [""]
         else:
-            nos.append(f"NO BUY {t}: {short_reason((d.get('reasons') or ['no reason given'])[0])}")
+            nos += [f"NO BUY {t}"] + reason_block(d) + [""]
     if not buys:
         lines += ["NO BUY TODAY. CASH OK.", ""]
     while waits and waits[-1] == "":
         waits.pop()
-    lines += buys + waits + nos
+    nos += signal_no_buys(signals, {str(d.get("ticker") or "").upper() for d in plans})
+    while nos and nos[-1] == "":
+        nos.pop()
+    lines += buys + waits + ([""] if waits and nos else []) + nos
     if waits or nos:
         lines.append("")
+    ms = market_sources(plans)
+    if ms:
+        lines += ms + [""]
     lines.append("YOU DECIDE. YOU PLACE ORDER. NOT ADVICE.")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -164,12 +429,20 @@ def main(argv=None):
     ap.add_argument("--market", default="")
     ap.add_argument("--metals", default="")
     ap.add_argument("--events", default="")
+    ap.add_argument("--signals", nargs="*", default=[], help="signals.py outputs; AVOID names get a NO BUY with the why")
     a = ap.parse_args(argv)
     plans = []
     for p in a.plans:
         with open(p) as f:
-            plans.append(json.load(f))
-    sys.stdout.write(render(plans, a.market, a.metals, a.events))
+            d = json.load(f)
+        if not isinstance(d, dict):
+            sys.exit(f"{p} is not a size_trade.py plan")
+        plans.append(d)
+    sigs = []
+    for p in a.signals:
+        with open(p) as f:
+            sigs.append(json.load(f))
+    sys.stdout.write(render(plans, a.market, a.metals, a.events, sigs))
 
 
 if __name__ == "__main__":

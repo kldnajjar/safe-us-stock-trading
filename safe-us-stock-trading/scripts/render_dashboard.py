@@ -15,6 +15,13 @@ Publish the file as an artifact (or send it). It is a snapshot: levels are valid
 quoted price shown on each card.
 """
 import argparse, html, json, sys
+import os as _os
+sys_path_dir = _os.path.dirname(_os.path.abspath(__file__))
+import sys as _sys
+if sys_path_dir not in _sys.path:
+    _sys.path.insert(0, sys_path_dir)
+import render_simple as _rs  # noqa: E402  (same WHY / FIX table as the text output)
+from portfolio_state import plan_is_trade as _plan_is_trade  # noqa: E402
 
 SAFETY_FOOTER = "YOU DECIDE. YOU PLACE ORDER. NOT ADVICE."
 BOYCOTT_WORD = {"reviewed_no_match": ("Not on lists", "ok"), "flagged": ("Flagged", "warn"),
@@ -173,9 +180,56 @@ def trade_body(d):
     return rows, lines
 
 
+def reason_html(d, r, label="Why"):
+    why, fix = _rs.explain(r)
+    out = f'<div class="reason bad"><b>{e(label)}:</b> {e(why or r)}'
+    details = [x.strip(" -") for x in _rs.detail_lines(d, r)]
+    if details:
+        out += "<br>" + "<br>".join(e(x) for x in details)
+    if fix:
+        out += f"<br><b>Fix:</b> {e(fix)}"
+    if why:
+        out += f'<br><span class="sub">Engine: {e(r)}</span>'
+    return out + "</div>"
+
+
+def extra_lines(d):
+    """v4.8 lines, same facts as the text output: fee source, fees vs profit, dividend, earnings, trend, sources."""
+    out = []
+    src = (d.get("assumptions") or {}).get("fee_schedule")
+    if src and src != "verified":
+        out.append((f"Fee schedule: {src}, NOT verified. Check fees in your app.", "warn"))
+    fc = d.get("fee_check") or {}
+    if fc:
+        out.append((f"Fees in and out {money(fc['round_trip_costs_at_t1'])} = {fc['costs_pct_of_gross_profit']:g}% "
+                    "of profit at first target", ""))
+    dv = d.get("dividend") or {}
+    if dv.get("net_yield_pct") is not None:
+        out.append((f"Dividend {dv['gross_yield_pct']:.2f}% -> {dv['net_yield_pct']:.2f}% after "
+                    f"{dv['withholding_pct']:g}% US tax", ""))
+    ea = d.get("earnings") or {}
+    if ea.get("date"):
+        out.append((f"Earnings {ea['date']} ({ea.get('days_away')} days)"
+                    + (": price can jump past the stop" if ea.get("inside_window") else ""),
+                    "warn" if ea.get("inside_window") else ""))
+    sg = d.get("signals") or {}
+    if sg.get("checked"):
+        out.append((f"Trend: {sg.get('hint')}" + (f" ({'; '.join(sg.get('flags') or [])})" if sg.get("flags") else ""),
+                    "ok" if sg.get("hint") == "OK" else "warn"))
+    elif d.get("asset") != "tbill":
+        out.append(("Trend: not checked (no signals run)", "warn"))
+    for ln in _rs.sources_lines(d):
+        out.append((ln.strip(), "bad" if "!!" in ln else ""))
+    return out
+
+
 def card(d):
     t = (d.get("ticker") or d.get("asset") or "?").upper()
     v = d.get("verdict") or "NO TRADE"
+    if v == "TRADE" and not _plan_is_trade(d):          # an edited plan file is never shown as a BUY
+        d = dict(d, verdict="NO TRADE", reasons=list(d.get("reasons") or []) +
+                 ["plan says TRADE but carries reasons or is not placeable (edited file?): re-run the engine"])
+        v = "NO TRADE"
     word, cls = VERDICT.get(v, ("NO BUY", "bad"))
     has_levels = bool(d.get("tranches"))
     head = f'<h3>{e(t)} <span class="badge {cls}">{e(word)}</span></h3>'
@@ -183,7 +237,11 @@ def card(d):
     body, lines = "", []
     reasons = d.get("reasons") or []
     if v != "TRADE":
-        body += f'<div class="reason {cls}">{e(reasons[0] if reasons else "no reason given")}</div>'
+        for r in reasons or ["no reason given by the engine"]:
+            body += reason_html(d, r)
+        if v == "NO TRADE":
+            for r in d.get("also_needed") or []:
+                body += reason_html(d, r, "Also needed")
     if has_levels and d.get("asset") != "tbill":
         if v == "WATCHLIST":
             body += '<div class="sub" style="margin-top:8px">IF READY LATER, PLAN IS:</div>'
@@ -194,7 +252,7 @@ def card(d):
                 ("Est. net return (guess, not promise)", money(d.get("expected_net_return"))),
                 ("Days just to pay fees", d.get("breakeven_holding_days"))]
         body += "<dl>" + "".join(f"<dt>{e(k)}</dt><dd>{e(x)}</dd>" for k, x in rows) + "</dl>"
-    lines += screen_lines(d)
+    lines += screen_lines(d) + extra_lines(d)
     for w in d.get("warnings") or []:
         if str(w).startswith("SCREEN NOT RUN"):
             lines.append((f"!! {w}", "bad"))
@@ -283,7 +341,11 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     if (state or {}).get("reconciliation_required"):
         p.append('<div class="banner bad">A holding is past its stop or review level. No new trades until '
                  'you fix it in the app.</div>')
-    if not any(x.get("verdict") == "TRADE" for x in plans):
+    mc = next((x.get("market_clock") for x in plans if x.get("market_clock")), None)
+    if mc and not mc.get("open"):
+        p.append(f'<div class="banner warn">NYSE closed ({e(mc.get("reason"))}). Next open '
+                 f'{e(mc.get("next_open_new_york", "?"))} New York time. Plans are conditional.</div>')
+    if not any(x.get("verdict") == "TRADE" and _plan_is_trade(x) for x in plans):
         p.append('<div class="banner warn">NO BUY TODAY. CASH OK.</div>')
     ctx = [(k, v) for k, v in (("Market", market), ("Gold / silver", metals), ("Watch", events)) if v]
     if ctx:
@@ -297,7 +359,16 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
         p.append(sectors(state, projected))
     if notes:
         p.append("<h2>Notes</h2><ul>" + "".join(f"<li>{e(n)}</li>" for n in notes) + "</ul>")
-    links = []
+    links, seen = [], set()
+    for x in plans:                                       # every market-wide source the plans were built on
+        for it in (x.get("sources") or {}).get("market_items") or []:
+            u = it.get("url") or ""
+            if u in seen or not u.startswith("https://"):
+                continue
+            seen.add(u)
+            when = it.get("published_at") or it.get("observed_at") or ""
+            links.append(f'<li><a href="{e(u)}" rel="noopener noreferrer">{e(it.get("source_name"))}: '
+                         f'{e(it.get("what") or it.get("category"))}</a> <span class="sub">{e(when)}</span></li>')
     for s in sources:
         t, _, u = s.partition("|")
         if u.startswith("https://") or u.startswith("http://"):

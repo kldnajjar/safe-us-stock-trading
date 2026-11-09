@@ -67,6 +67,15 @@ def check_weights(where, weights):
                          "(put any unknown share under \"Unclassified\")")
 
 
+VALID_ASSETS = {"stock", "etf", "metal", "tbill"}
+
+
+def plan_is_trade(pl):
+    """A real TRADE plan: verdict TRADE, no reasons, placeable, with shares. Guards against edited files."""
+    return (pl.get("verdict") == "TRADE" and not pl.get("reasons") and (pl.get("shares") or 0) >= 1
+            and str(pl.get("placement_status", "")).startswith(("provisional", "ready")))
+
+
 def add_sectors(acc, weights, value):
     for s, w in (weights or {}).items():
         acc[s] = acc.get(s, 0.0) + value * w
@@ -79,6 +88,15 @@ def build(state, plans=(), fee=None):
         if not isinstance(state.get(k), (int, float)) or state[k] < 0:
             raise ValueError("state 'cash' must be a number >= 0")
     warnings, breached, unquantified = [], [], []
+    seen_h = [str(h.get("ticker", "")).upper() for h in state.get("holdings") or []]
+    dup_h = sorted({t for t in seen_h if seen_h.count(t) > 1})
+    if dup_h:
+        raise ValueError(f"holdings list {', '.join(dup_h)} more than once: combine the lots into one row "
+                         "(total shares, weighted average cost), exactly as the app shows the position")
+    seen_o = [o.get("id") for o in state.get("orders") or [] if o.get("id")]
+    dup_o = sorted({i for i in seen_o if seen_o.count(i) > 1})
+    if dup_o:
+        raise ValueError(f"order id(s) {', '.join(map(str, dup_o))} appear more than once: each working order once")
     acc = dict(sectors={}, tickers={}, metals=0.0, tbill=0.0, stop=0.0, review=0.0, unq_value=0.0, positions=set())
 
     def add_exposure(ticker, asset, value, weights):
@@ -96,8 +114,8 @@ def build(state, plans=(), fee=None):
         elif asset == "tbill":
             acc["tbill"] += value
 
-    def add_risk(ticker, asset, shares, price, level, level_type, value):
-        """Downside from `price` to `level`. Returns a row label."""
+    def add_risk(ticker, asset, shares, price, level, level_type, value, buy_fee=0.0):
+        """Downside from `price` to `level` (plus the buy fee still to be paid, for unfilled buy orders)."""
         if asset == "tbill":
             return "rate risk only (see size_trade tbill path)"
         if level_type == "none" or level is None:
@@ -108,7 +126,7 @@ def build(state, plans=(), fee=None):
             breached.append(ticker)
             acc["unq_value"] += value
             return "BREACHED: price is at or below the stop/review level; reconcile before any new trade"
-        d = shares * (price - level) + fee(shares * level, shares, side="sell")
+        d = shares * (price - level) + fee(shares * level, shares, side="sell") + buy_fee
         acc["stop" if level_type == "hard" else "review"] += d
         return round(d, 2)
 
@@ -121,6 +139,9 @@ def build(state, plans=(), fee=None):
         mv = h["shares"] * h["price"]
         market_value += mv
         asset = h.get("asset", "stock")
+        if asset not in VALID_ASSETS:
+            raise ValueError(f"holding {h.get('ticker')}: asset must be one of {', '.join(sorted(VALID_ASSETS))} "
+                             f"(got {asset!r})")
         add_exposure(h["ticker"], asset, mv, h.get("sector_weights"))
         row = dict(ticker=h["ticker"].upper(), asset=asset, market_value=round(mv, 2),
                    unrealized_pnl=round(mv - h["shares"] * h.get("avg_cost", h["price"]), 2))
@@ -182,8 +203,12 @@ def build(state, plans=(), fee=None):
             warnings.append(f"order {o.get('id')}: remaining {remaining} shares (${value:.2f}) is below the $100 minimum; cancel or resize")
         committed += c
         asset = o.get("asset", "stock")
+        if asset not in VALID_ASSETS:
+            raise ValueError(f"order {o.get('id') or o.get('ticker')}: asset must be one of "
+                             f"{', '.join(sorted(VALID_ASSETS))} (got {asset!r})")
         add_exposure(o["ticker"], asset, value, o.get("sector_weights"))
-        risk = add_risk(o["ticker"].upper(), asset, remaining, o["limit"], o.get("level"), o.get("level_type", "none"), value)
+        risk = add_risk(o["ticker"].upper(), asset, remaining, o["limit"], o.get("level"), o.get("level_type", "none"), value,
+                        buy_fee=fee(value, remaining))     # treasury audit: the unpaid buy fee is part of the loss
         order_rows.append(dict(id=o.get("id"), side="buy", status=st, remaining_shares=remaining,
                                commitment=round(c, 2), pending_downside=risk))
 
@@ -213,8 +238,16 @@ def build(state, plans=(), fee=None):
         p_sec, p_tick = dict(actual["sector_exposure"]), dict(actual["ticker_exposure"])
         p_stop, p_rev, p_comm = acc["stop"], acc["review"], committed_for_engine
         p_metals, p_tbill, p_pos = acc["metals"], acc["tbill"], set(acc["positions"])
-        planned = []
+        planned, seen = [], set()
         for pl in plans:
+            if pl.get("verdict") == "TRADE" and not plan_is_trade(pl):
+                raise ValueError(f"plan for {pl.get('ticker')} says TRADE but carries reasons or is not placeable "
+                                 "(edited?): re-run size_trade.py")
+            key = (str(pl.get("ticker")).upper(), json.dumps(pl.get("tranches"), sort_keys=True),
+                   (pl.get("quote") or {}).get("time"))
+            if pl.get("verdict") == "TRADE" and key in seen:
+                raise ValueError(f"plan for {pl.get('ticker')} is listed twice: pass each plan once")
+            seen.add(key)
             if pl.get("verdict") != "TRADE":
                 warnings.append(f"plan for {pl.get('ticker') or pl.get('asset')} skipped: verdict {pl.get('verdict')}")
                 continue
@@ -224,8 +257,11 @@ def build(state, plans=(), fee=None):
             t, asset = (pl.get("ticker") or "").upper(), pl.get("asset")
             p_comm += r["total"]
             p_tick[t] = p_tick.get(t, 0.0) + r["order_value"]
-            for k, v in (pl.get("projected_sector_exposure") or {}).items():
-                p_sec[k] = v
+            if asset in COUNTED:
+                w = pl.get("sector_weights")
+                if not isinstance(w, dict):
+                    raise ValueError(f"plan for {t} has no sector_weights (made by an older engine?): re-run size_trade.py")
+                add_sectors(p_sec, w, r["order_value"])     # add this plan's own money, independent of order
             dn = pl.get("downside") or {}
             p_stop += dn.get("executable_stop_downside", 0.0)
             p_rev += dn.get("long_term_review_level_downside", 0.0)

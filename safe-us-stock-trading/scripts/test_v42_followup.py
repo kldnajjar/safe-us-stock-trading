@@ -8,6 +8,11 @@ import sys
 import os
 import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import size_trade as _st_v48  # noqa: E402
+# v4.8: these v4.x suites isolate one gate at a time, so the mandatory screen and source gates are
+# switched off here (module switch, like CLOCK). test_v48_mandatory.py tests them switched on.
+_st_v48.SCREENS_REQUIRED = _st_v48.SOURCES_REQUIRED = _st_v48.MARKET_CLOCK_REQUIRED = False
 import shariah_screen as sh
 import size_trade as st
 def trade(**kwargs):

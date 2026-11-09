@@ -1,0 +1,442 @@
+{
+  "schema": "source-registry/1",
+  "verified_on": "2026-11-09",
+  "max_age_days": 180,
+  "note": "Maintainer-edited only. Never edit during a session. Tier 1 = official/primary (regulator, statistics agency, central bank, exchange, the company's own SEC filing). Tier 2 = wire service or major financial press. Tier 3 = data aggregator or quote site. Higher tier wins when sources disagree.",
+  "max_session_age_minutes": 60,
+  "sources": {
+    "sec_edgar": {
+      "name": "SEC EDGAR",
+      "tier": 1,
+      "domains": [
+        "sec.gov"
+      ]
+    },
+    "nasdaq": {
+      "name": "Nasdaq",
+      "tier": 1,
+      "domains": [
+        "nasdaq.com"
+      ]
+    },
+    "nyse": {
+      "name": "NYSE",
+      "tier": 1,
+      "domains": [
+        "nyse.com"
+      ]
+    },
+    "cboe": {
+      "name": "Cboe",
+      "tier": 1,
+      "domains": [
+        "cboe.com"
+      ]
+    },
+    "federal_reserve": {
+      "name": "Federal Reserve",
+      "tier": 1,
+      "domains": [
+        "federalreserve.gov"
+      ]
+    },
+    "bls": {
+      "name": "US Bureau of Labor Statistics",
+      "tier": 1,
+      "domains": [
+        "bls.gov"
+      ]
+    },
+    "bea": {
+      "name": "US Bureau of Economic Analysis",
+      "tier": 1,
+      "domains": [
+        "bea.gov"
+      ]
+    },
+    "treasury": {
+      "name": "US Treasury",
+      "tier": 1,
+      "domains": [
+        "treasury.gov",
+        "treasurydirect.gov"
+      ]
+    },
+    "fred": {
+      "name": "FRED (St. Louis Fed)",
+      "tier": 1,
+      "domains": [
+        "stlouisfed.org"
+      ]
+    },
+    "cme": {
+      "name": "CME Group (FedWatch)",
+      "tier": 1,
+      "domains": [
+        "cmegroup.com"
+      ]
+    },
+    "eia": {
+      "name": "US Energy Information Administration",
+      "tier": 1,
+      "domains": [
+        "eia.gov"
+      ]
+    },
+    "wgc": {
+      "name": "World Gold Council",
+      "tier": 1,
+      "domains": [
+        "gold.org"
+      ]
+    },
+    "fund_issuer": {
+      "name": "Fund issuer (iShares, SPDR, Vanguard, Invesco, Schwab, abrdn, Wahed, SP Funds)",
+      "tier": 1,
+      "domains": [
+        "ishares.com",
+        "blackrock.com",
+        "ssga.com",
+        "spdrgoldshares.com",
+        "vanguard.com",
+        "invesco.com",
+        "schwabassetmanagement.com",
+        "abrdn.com",
+        "wahedinvest.com",
+        "funds.wahed.com",
+        "sp-funds.com"
+      ]
+    },
+    "reuters": {
+      "name": "Reuters",
+      "tier": 2,
+      "domains": [
+        "reuters.com"
+      ]
+    },
+    "ap": {
+      "name": "Associated Press",
+      "tier": 2,
+      "domains": [
+        "apnews.com"
+      ]
+    },
+    "bloomberg": {
+      "name": "Bloomberg",
+      "tier": 2,
+      "domains": [
+        "bloomberg.com"
+      ]
+    },
+    "ft": {
+      "name": "Financial Times",
+      "tier": 2,
+      "domains": [
+        "ft.com"
+      ]
+    },
+    "wsj": {
+      "name": "The Wall Street Journal",
+      "tier": 2,
+      "domains": [
+        "wsj.com"
+      ]
+    },
+    "cnbc": {
+      "name": "CNBC",
+      "tier": 2,
+      "domains": [
+        "cnbc.com"
+      ]
+    },
+    "bbc": {
+      "name": "BBC News",
+      "tier": 2,
+      "domains": [
+        "bbc.com",
+        "bbc.co.uk"
+      ]
+    },
+    "economist": {
+      "name": "The Economist",
+      "tier": 2,
+      "domains": [
+        "economist.com"
+      ]
+    },
+    "marketwatch": {
+      "name": "MarketWatch",
+      "tier": 2,
+      "domains": [
+        "marketwatch.com"
+      ]
+    },
+    "barrons": {
+      "name": "Barron's",
+      "tier": 2,
+      "domains": [
+        "barrons.com"
+      ]
+    },
+    "aljazeera": {
+      "name": "Al Jazeera",
+      "tier": 2,
+      "domains": [
+        "aljazeera.com"
+      ]
+    },
+    "guardian": {
+      "name": "The Guardian",
+      "tier": 2,
+      "domains": [
+        "theguardian.com"
+      ]
+    },
+    "nikkei": {
+      "name": "Nikkei Asia",
+      "tier": 2,
+      "domains": [
+        "nikkei.com"
+      ]
+    },
+    "yahoo": {
+      "name": "Yahoo Finance",
+      "tier": 3,
+      "domains": [
+        "finance.yahoo.com",
+        "query1.finance.yahoo.com",
+        "query2.finance.yahoo.com"
+      ]
+    },
+    "stockanalysis": {
+      "name": "StockAnalysis",
+      "tier": 3,
+      "domains": [
+        "stockanalysis.com"
+      ]
+    },
+    "stooq": {
+      "name": "Stooq",
+      "tier": 3,
+      "domains": [
+        "stooq.com"
+      ]
+    },
+    "investing": {
+      "name": "Investing.com",
+      "tier": 3,
+      "domains": [
+        "investing.com"
+      ]
+    },
+    "morningstar": {
+      "name": "Morningstar",
+      "tier": 3,
+      "domains": [
+        "morningstar.com"
+      ]
+    }
+  },
+  "categories": {
+    "quote": {
+      "what": "last trade price for a ticker (the price the engine sizes against)",
+      "ticker": true,
+      "allowed": [
+        "nasdaq",
+        "nyse",
+        "cboe",
+        "yahoo",
+        "stooq",
+        "stockanalysis",
+        "cnbc",
+        "marketwatch",
+        "reuters",
+        "bloomberg"
+      ],
+      "requires": [
+        "value"
+      ],
+      "max_observed_age_min": 15,
+      "max_delay_min": 20,
+      "cross_check_pct": 0.5,
+      "preferred_sources": 2
+    },
+    "price_history": {
+      "what": "20/50/200-day MAs, ATR(14), swing highs/lows, 52-week range",
+      "ticker": true,
+      "allowed": [
+        "nasdaq",
+        "nyse",
+        "yahoo",
+        "stooq",
+        "stockanalysis",
+        "marketwatch",
+        "investing",
+        "morningstar"
+      ],
+      "requires": [
+        "history_through"
+      ],
+      "max_observed_age_min": 1440,
+      "max_history_lag_days": 4
+    },
+    "earnings_date": {
+      "what": "next earnings date (stocks): event_date YYYY-MM-DD is the date itself",
+      "ticker": true,
+      "allowed": [
+        "sec_edgar",
+        "nasdaq",
+        "nyse",
+        "yahoo",
+        "stockanalysis",
+        "marketwatch",
+        "investing",
+        "reuters"
+      ],
+      "requires": [
+        "event_date"
+      ],
+      "max_observed_age_min": 1440
+    },
+    "fundamentals": {
+      "what": "balance sheet, income, EPS, margins: only from the filing itself",
+      "ticker": true,
+      "allowed": [
+        "sec_edgar"
+      ],
+      "requires": [
+        "published_at",
+        "form",
+        "period_end",
+        "latest_filing_checked_at"
+      ],
+      "forms": [
+        "10-Q",
+        "10-K",
+        "20-F",
+        "40-F",
+        "6-K",
+        "8-K",
+        "N-CSR",
+        "N-PORT"
+      ],
+      "max_observed_age_min": 1440,
+      "max_published_age_days": 135,
+      "max_latest_filing_check_hours": 24
+    },
+    "fund_holdings": {
+      "what": "ETF holdings and sector weights",
+      "ticker": true,
+      "allowed": [
+        "fund_issuer",
+        "sec_edgar"
+      ],
+      "requires": [
+        "published_at"
+      ],
+      "max_observed_age_min": 1440,
+      "max_published_age_days": 35
+    },
+    "consensus": {
+      "what": "analyst consensus target, number of analysts, consensus EPS",
+      "ticker": true,
+      "allowed": [
+        "stockanalysis",
+        "yahoo",
+        "marketwatch",
+        "investing",
+        "morningstar",
+        "nasdaq",
+        "reuters",
+        "cnbc"
+      ],
+      "requires": [],
+      "max_observed_age_min": 1440
+    },
+    "macro_release": {
+      "what": "a scheduled official release: FOMC decision, CPI, jobs, PPI, GDP, PCE, WGC demand trends",
+      "ticker": false,
+      "allowed": [
+        "federal_reserve",
+        "bls",
+        "bea",
+        "treasury",
+        "eia",
+        "wgc"
+      ],
+      "requires": [
+        "published_at",
+        "next_release"
+      ],
+      "max_observed_age_min": 1440,
+      "max_published_age_days": 100
+    },
+    "market_series": {
+      "what": "a daily market series: yields, DFII10, DTWEXBGS, VIX, FedWatch odds, oil",
+      "ticker": false,
+      "allowed": [
+        "treasury",
+        "fred",
+        "cboe",
+        "cme",
+        "eia",
+        "federal_reserve"
+      ],
+      "requires": [
+        "published_at"
+      ],
+      "max_observed_age_min": 1440,
+      "max_published_age_days": 5
+    },
+    "release_consensus": {
+      "what": "the forecast for an upcoming or just-released number (for actual vs consensus)",
+      "ticker": false,
+      "allowed": [
+        "investing",
+        "reuters",
+        "bloomberg",
+        "wsj",
+        "marketwatch",
+        "cnbc"
+      ],
+      "requires": [],
+      "max_observed_age_min": 10080
+    },
+    "news": {
+      "what": "a reported event; headlines are leads, the filing or official release is the fact",
+      "ticker": false,
+      "allowed": [
+        "sec_edgar",
+        "federal_reserve",
+        "bls",
+        "bea",
+        "treasury",
+        "eia",
+        "wgc",
+        "nasdaq",
+        "nyse",
+        "reuters",
+        "ap",
+        "bloomberg",
+        "ft",
+        "wsj",
+        "cnbc",
+        "bbc",
+        "economist",
+        "marketwatch",
+        "barrons",
+        "aljazeera",
+        "guardian",
+        "nikkei",
+        "yahoo"
+      ],
+      "requires": [
+        "published_at",
+        "claim_id"
+      ],
+      "max_observed_age_min": 1440,
+      "max_published_age_days": 7,
+      "corroboration": "two different sources, or one tier-1 source, per claim_id"
+    }
+  }
+}

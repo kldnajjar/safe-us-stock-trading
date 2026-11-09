@@ -4,6 +4,27 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### v4.8: mandatory screens, fresh cited sources, full NO BUY reasons, journal, audited
+
+**Changed (breaking for the question flow)**
+- Boycott and Shariah screens are **mandatory**: the engine refuses `off`, flag mode needs a real result file, and question B4/B5 offer only Exclude (default) or Flag only. The Shariah methodology and interest-on-cash questions are always asked.
+- Every NO BUY / WAIT (text and dashboard) prints **all** reasons in plain words, the facts behind them, a fix, the engine text, and "ALSO NEEDED" lines.
+
+**Added**
+- Source ledger: `sources.json` (ranked registry: official > wire/press > data sites, freshness rules per data type), `sources_check.py`, `ledger.py`. The engine re-checks the ledger at sizing time; stale, conflicting or off-site sources mean WATCHLIST. Plans and the dashboard show where every number came from.
+- `market_clock.py` (ported from trader-skill, MIT): executable only in the NYSE regular session, quote from the current session, 2026–2027 holidays and early closes.
+- `signals.py`: long-only signals from *151 Trading Strategies* (momentum, SUE, low volatility, multifactor rank, trend and dual-momentum filters), recomputed by the engine from the recorded prices. AVOID refused; short-term entries need a good trend.
+- Gates: earnings date from the ledger (earliest wins; short-term trades not held through earnings unless accepted); short-term trades refused when fees eat >25% of the first target's profit; dividends after US withholding.
+- `journal.py`: paper/real trade journal, performance report vs a benchmark, `reconcile` against the app, audit trail (plan SHA-256, broker, fee source).
+- `run_checks.py`: expiry warnings for the Shariah registry, source registry and NYSE calendar.
+- `AUDIT-v4.8.md`: four-round verification record.
+
+**Fixed (59 findings from an independent code review, an end-to-end run, an adversarial audit and a treasury audit)**
+- Bypasses closed: fake earnings date, edited signals, edited screen expiry, ETF boycott relabel, edited plan verdict, related-ticker max-positions trick, sector-name aliases, company sized as metal, pre-open quote, unknown asset types, duplicate holdings/orders, projected state depending on plan order.
+- Money: pending buy orders now count their unpaid fee as risk; losses/costs round up, profits down, charity up.
+- Crashes on bad price files and inputs now fail cleanly; the metal Shariah screen's `--metal-structure` is documented.
+- 412 tests (all gates on in `test_v48_mandatory.py`; older suites isolate their own gate).
+
 ### Changed (v4.7)
 - The whole flow asks **one question per message**: setup (trade, account, portfolio) and every question that comes up during the run (sector, flagged screens, earnings gap risk, manual stop, live price, order match, fills). Each question has a progress tag, picker options where the answers are fixed, a safe default for "not sure", and is skipped when already answered. Unattended runs use the defaults, stay WATCHLIST-only and list the open questions.
 

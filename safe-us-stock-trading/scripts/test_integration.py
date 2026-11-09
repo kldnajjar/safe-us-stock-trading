@@ -6,6 +6,11 @@ import json, os, subprocess, sys, tempfile, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+
+import size_trade as _st_v48  # noqa: E402
+# v4.8: these v4.x suites isolate one gate at a time, so the mandatory screen and source gates are
+# switched off here (module switch, like CLOCK). test_v48_mandatory.py tests them switched on.
+_st_v48.SCREENS_REQUIRED = _st_v48.SOURCES_REQUIRED = _st_v48.MARKET_CLOCK_REQUIRED = False
 import boycott_screen as bs  # noqa: E402
 import fees  # noqa: E402
 import portfolio_state as ps  # noqa: E402
@@ -18,7 +23,7 @@ FEE = fees.broker_profile("bank-al-etihad-jo")[1]
 
 # size_trade.py checks quotes against the system clock. These fixtures are fixed-date, so the real
 # command-line entry point (main) runs in a subprocess with the clock pinned 5 minutes after QT.
-PINNED = ("import sys, datetime as d; sys.path.insert(0, %r); import size_trade as s; "
+PINNED = ("import sys, datetime as d; sys.path.insert(0, %r); import size_trade as s; s.SCREENS_REQUIRED = s.SOURCES_REQUIRED = s.MARKET_CLOCK_REQUIRED = False; "
           "s.CLOCK = lambda: d.datetime(2026, 11, 5, 20, 35, tzinfo=d.timezone.utc); "
           "sys.argv[0] = 'size_trade.py'; s.main(sys.argv[1:])" % HERE)
 
