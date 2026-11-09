@@ -44,6 +44,7 @@ main{max-width:1080px;margin:0 auto;padding:24px 16px 48px}
 h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;
 color:var(--mute);margin:28px 0 10px}.sub{color:var(--mute);font-size:13px}
 .banner{border-radius:8px;padding:10px 14px;margin:14px 0;font-weight:600}
+.banner.ok{background:var(--ok-bg);color:var(--ok)}.banner ol{margin:6px 0 0 18px;font-weight:500}
 .banner.bad{background:var(--bad-bg);color:var(--bad)}.banner.warn{background:var(--warn-bg);color:var(--warn)}
 .ctx{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .ctx div,.tile,.card,.tbl{background:var(--card);border:1px solid var(--line);border-radius:10px}
@@ -332,7 +333,11 @@ def sectors(state, projected):
 
 
 def render(plans, state=None, projected=None, market="", metals="", events="", notes=(), sources=(),
-           title="Trade plan"):
+           title="Trade plan", skipped=()):
+    # v4.9: never-researched plans (screens not run) are listed once under Skipped, not as red cards
+    skipped = list(skipped) + [f"{(x.get('ticker') or '?').upper()}|not researched (screens not run), not a candidate"
+                               for x in plans if _rs.never_researched(x)]
+    plans = [x for x in plans if not _rs.never_researched(x)]
     first = next((p for p in plans if p.get("profile")), {})
     asof = next((get(p, "quote", "time") for p in plans if get(p, "quote", "time")), "")
     p = [f'<h1>{e(title)}</h1><div class="sub">Risk {e(str(first.get("profile") or "n/a").upper())} · '
@@ -345,6 +350,20 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     if mc and not mc.get("open"):
         p.append(f'<div class="banner warn">NYSE closed ({e(mc.get("reason"))}). Next open '
                  f'{e(mc.get("next_open_new_york", "?"))} New York time. Plans are conditional.</div>')
+    rows = _rs.screen_rows(plans)
+    if rows:
+        cls = lambda lab: "ok" if lab in ("NOT ON LISTS", "HALAL") else ("bad" if lab in ("ON BOYCOTT LIST", "NOT HALAL") else "warn")
+        p.append("<h2>Screens (every idea, with references)</h2><table><tr><th>Ticker</th><th>Boycott</th>"
+                 "<th>Reference</th><th>Halal</th><th>Reference</th></tr>" + "".join(
+                     f'<tr><td><b>{e(t)}</b></td><td class="{cls(bl)}">{e(bl)}</td><td>{e(br)}</td>'
+                     f'<td class="{cls(hl)}">{e(hl)}</td><td>{e(hr)}</td></tr>' for t, bl, br, hl, hr in rows) + "</table>")
+    opts, rec = _rs.option_rows(plans)
+    p.append("<h2>Your options</h2><ol type=\"A\">" + "".join(
+        f"<li>{'<b>' if L == rec else ''}{e(text)}{' (recommended)</b>' if L == rec else ''}"
+        + (f' <span class="sub">[{e(lab)}]</span>' if lab else "") + "</li>" for L, text, lab, _ in opts) + "</ol>")
+    steps = [ln.strip() for ln in _rs.action_lines(plans, events)[1:] if ln.strip()]
+    p.append('<div class="banner ok"><b>What to do now</b><ol>'
+             + "".join(f"<li>{e(ln.split('. ', 1)[1] if '. ' in ln else ln)}</li>" for ln in steps) + "</ol></div>")
     if not any(x.get("verdict") == "TRADE" and _plan_is_trade(x) for x in plans):
         p.append('<div class="banner warn">NO BUY TODAY. CASH OK.</div>')
     ctx = [(k, v) for k, v in (("Market", market), ("Gold / silver", metals), ("Watch", events)) if v]
@@ -357,6 +376,10 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     if state:
         p.append("<h2>Holdings</h2>" + holdings_table(state))
         p.append(sectors(state, projected))
+    if skipped:
+        p.append("<h2>Skipped</h2><ul>" + "".join(
+            f"<li><b>{e(x.partition('|')[0].strip().upper())}</b>: {e(x.partition('|')[2].strip() or 'not a candidate')}</li>"
+            for x in skipped) + "</ul>")
     if notes:
         p.append("<h2>Notes</h2><ul>" + "".join(f"<li>{e(n)}</li>" for n in notes) + "</ul>")
     links, seen = [], set()
@@ -393,6 +416,7 @@ def main(argv=None):
     ap.add_argument("--note", action="append", default=[])
     ap.add_argument("--source", action="append", default=[], help='"Title|https://url"')
     ap.add_argument("--title", default="Trade plan")
+    ap.add_argument("--skipped", action="append", default=[], help='v4.9: "TICKER|why it was dropped"')
     ap.add_argument("--out")
     a = ap.parse_args(argv)
 
@@ -401,7 +425,7 @@ def main(argv=None):
             return json.load(fh)
     page = render([load(f) for f in a.plans], load(a.state) if a.state else None,
                   load(a.projected) if a.projected else None, a.market, a.metals, a.events,
-                  a.note, a.source, a.title)
+                  a.note, a.source, a.title, a.skipped)
     if a.out:
         with open(a.out, "w") as fh:
             fh.write(page)

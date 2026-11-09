@@ -4,6 +4,19 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### v4.9: clear options, flag labels with references, budget cap, Robinhood
+
+**Added**
+- Every output opens with **SCREENS** (boycott and halal result per idea, each with its reference: list and link, or methodology and failed ratio), **YOUR OPTIONS** (lettered, with engine numbers, plus KEEP CASH and one RECOMMENDED letter: a clean option that passes the risk rules, else cash) and **WHAT TO DO NOW** (app steps for the recommended option). Text and dashboard.
+- Flag mode now shows failing names as labelled options ("ON BOYCOTT LIST / NOT HALAL (FLAG ONLY: YOU DECIDE)" with references); the recommendation never goes to a flagged name.
+- `--budget` on `size_trade.py` caps the order cost (with buy fees) at the user's amount; limits still use the whole portfolio.
+- `robinhood` broker profile: commission-free US stocks and ETFs, verified 2026-11-09.
+- `--skipped "TICKER|why"` on both renderers; plans blocked only by never-run screens are listed once under SKIPPED instead of a red NO BUY.
+- SKILL.md: fast path, screen-before-show rule, one account per trade, AFSC fund search for ETF look-through, output order.
+
+**Changed**
+- A Shariah REQUIRES_ACCEPTANCE result is labelled "HALAL IF YOU ACCEPT".
+
 ### v4.8: mandatory screens, fresh cited sources, full NO BUY reasons, journal, audited
 
 **Changed (breaking for the question flow)**

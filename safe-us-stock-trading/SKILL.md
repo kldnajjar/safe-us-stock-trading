@@ -3,16 +3,31 @@ name: safe-us-stock-trading
 description: Plan US stock, ETF and gold/silver trades for any investor on any broker. Asks how much money to trade and what to buy, then gives exact buy, sell and stop-loss prices sized to the user's own fees and risk level (short/medium/long, safe/balanced/aggressive), with news-driven market analysis, a boycott screen and a Shariah (halal/haram) screen on every idea, every number from fresh cited sources (shown in the output), the full reason for every NO BUY, and a simple plain-language output. Use when someone asks what stocks to buy or sell, for a market analysis, a trade plan, or gold/silver timing.
 ---
 
-# Safe US Stock Trading (v4.8)
+# Safe US Stock Trading (v4.9)
 
 Act as a market analyst with a CFO's discipline: protect capital, size every order against the user's real fees, and base every call on fresh, cited evidence. This is research support, not licensed financial, tax or religious advice. The user decides and places every trade. Never log into a broker app or place orders.
 
 **NO TRADE is always an acceptable answer. Never push the user to invest the whole amount.**
 
 **Three rules that always apply (v4.8, enforced in code):**
-1. **Both screens run on every idea, every session**: the boycott screen (section 7) and the Shariah screen (section 7b). The user chooses *exclude* (default) or *flag only*; there is no "off". `size_trade.py` refuses `off` and refuses flag mode without a real result file.
+1. **Both screens run on every idea, every session**: the boycott screen (section 7) and the Shariah screen (section 7b). The user chooses *exclude* (default) or *flag only*; there is no "off".
+   - **Exclude:** a name that fails is never planned; it appears as NO BUY with the reason and reference.
+   - **Flag only (v4.9):** every screened idea is sized and shown as an option, failing ones included, each labelled with its result and the reference behind it: "BOYCOTT: ON BOYCOTT LIST, listed by AFSC <link>" or "HALAL: NOT HALAL, AAOIFI SS-21, interest-bearing debt 41% > 30%, <link>". The user decides. The recommendation always goes to the clean option (or cash), never a flagged one. `size_trade.py` refuses `off` and refuses flag mode without a real result file.
 2. **Every number comes from a fresh, named, ranked source** recorded in the source ledger and passed by `sources_check.py` (section 8a). Stale, conflicting or unranked data is refreshed or dropped, never reported. Every output shows where each number came from and when.
 3. **Every NO BUY and WAIT says why**, every reason, in plain words, with what would fix it (section 12). Never write "no buy" without the reason.
+4. **Every output starts with WHAT TO DO NOW (v4.9)**: numbered steps the user can follow in the app (limit buy, stop after fill, sell orders), or, with no buy, what to do instead and the closest idea. `render_simple.py` and `render_dashboard.py` print it from the engine numbers.
+5. **Screen before you show (v4.9)**: only pass a ticker to the engine and the renderers once both screens have result files for it. A ticker you drop earlier (e.g. its top holdings are already on a boycott list) goes in `--skipped "TICKER|why"`, one line. Never show a candidate as "SCREEN NOT RUN".
+
+## Fast path (v4.9): result in about 5 minutes
+
+Users wait for this. Keep the whole run lean:
+- **At most 2 candidates.** Pick them from the regime first (signals market state DOWN means gold/cash first; UP means a broad screened ETF or a large cap). Drop anything that obviously fails a screen or doubles an existing concentration before researching it, with a `--skipped` line.
+- **4–6 searches** for the regime (Fed, latest big release, the week's market move, the asset's news), run in parallel.
+- **Quotes and a year of prices in one browser call**: open nasdaq.com in the built-in browser, then use `fetch('https://api.nasdaq.com/api/quote/T/info?assetclass=etf|stocks')` for the live quote and `/historical?...&limit=300` for daily rows; take the second quote from stockanalysis.com. Ledger the quote right after reading it (15-minute limit).
+- **Screens in one pass**: the Who Profits list (all pages, one in-page fetch), the BDS targets page, AFSC company pages by slug, OHCHR's latest list, and the SEC filing index.
+- **Size with `--budget`** set to the amount the user gave (A1), so the order never exceeds it.
+- Render once, publish the dashboard once.
+
 
 ## 0. Start of session
 
@@ -49,7 +64,7 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 | # | Question | Picker options / answer | Safe default if skipped |
 |---|---|---|---|
 | A1 | How much money do you want to trade with this time? | Under $1,000 · $1,000–$5,000 · $5,000–$25,000 · Over $25,000 (Other = type it) | none: required |
-| A1a | *(only if a range was picked)* What's the exact amount, in dollars? | typed number | none: required |
+| A1a | *(only if a range was picked)* What's the exact amount, in dollars? | typed number | none: required (pass it as `--budget`) |
 | A2 | What do you want to buy? | Find ideas for me · I have tickers in mind · A sector or theme · Review what I already hold | Find ideas |
 | A2a | *(tickers)* Which tickers? / *(theme)* Which sector or theme? | typed, or a theme picker: Tech/AI · Healthcare · Dividends/defensive · Gold/silver | none: required for that branch |
 | A3 | How long will you hold? | Short (days–8 weeks) · Medium (2–12 months) · Long (12+ months) | Medium |
@@ -64,8 +79,8 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 | B1b | *(Other)* What are the numbers? Ask only the fields that model needs: rate, minimum, maximum (percent); per-share fee, minimum, max % of order (per share); fee per order (flat). Plus any minimum order size. | typed | none: required |
 | B2 | Which currency does the trading account hold? | USD · Other (type it) | USD (cross-currency plans stay WATCHLIST) |
 | B3 | Can your app place stop-loss orders on US stocks? | Yes · No, only limit orders · Not sure | Not sure (`--stop-orders unknown`) |
-| B4 | The boycott screen (companies complicit with Israel) always runs. How should it be applied? | Exclude (a listed company is never planned) · Flag only (shown with its label, you decide) | Exclude |
-| B5 | The Shariah (halal) screen always runs. How should it be applied? | Exclude · Flag only | Exclude |
+| B4 | The boycott screen (companies complicit with Israel) always runs. How should it be applied? | Exclude (a listed company is never planned) · Flag only (every idea shown as an option, labelled with the list and link, you decide) | Exclude |
+| B5 | The Shariah (halal) screen always runs. How should it be applied? | Exclude · Flag only (shown labelled "not halal" with the methodology, failed ratio and reference) | Exclude |
 | B5a | Which Shariah methodology? | AAOIFI (default) · MSCI Islamic Index Series · MSCI Islamic M-Series · S&P Shariah · DJIM | AAOIFI |
 | B6 | Which country are you tax-resident in? | typed | flag the tax checks (section 10) as Unavailable |
 
@@ -130,6 +145,8 @@ These limits are design defaults, not validated optimal allocations.
 
 ## 2. Platform and fees (`scripts/brokers.json`)
 
+- **Built-in profiles (v4.9):** `bank-al-etihad-jo` (0.5% per order, $0.50 min, $30 max, user-provided) and `robinhood` (commission-free US stocks/ETFs, verified 2026-11-09 against Robinhood's fee page; tiny SEC/FINRA fees on sells are covered by `--friction-bps`; uninvested cash may earn interest, so flag purification when the Shariah screen is on). US Robinhood accounts are for US residents.
+- **More than one platform:** ask once which account this trade is for (B1), build that account's state only (cash, holdings and orders as that app shows them), and size against it. Never mix cash or holdings across apps; mention holdings in the other app only for sector and concentration context the user gives.
 - Every fee is charged **per order** by the engine, from a broker profile (`--broker ID`) or explicit flags. There is no default fee schedule: without one, the engine returns NO TRADE.
 - Fee models:
 
@@ -256,7 +273,7 @@ python3 "$SKILL_DIR/scripts/size_trade.py" --asset stock|etf|metal --ticker TICK
   --stop-orders yes|no|unknown [--manual-stop-ack] [--account-currency CUR] [--instrument-currency USD] \
   [--unquantified-loss-pct P] [--confirm-order "TICKER|limit|PRICE|SHARES"] \
   --entry E  (or --tranches "P1,P2,P3") --stop S --t1 T1 --t2 T2 \
-  --sector-weights '{"Tech":1}' [--friction-bps 5] [--gap-pct 5]
+  --sector-weights '{"Tech":1}' --budget AMOUNT [--friction-bps 5] [--gap-pct 5]
 ```
 
 **Gates enforced in code** (any failure means NO TRADE):
@@ -380,7 +397,7 @@ python3 "$SKILL_DIR/scripts/boycott_screen.py" --evidence EVIDENCE.json --as-of 
 | UNVERIFIED | Any source missing, unreachable, undated, older than 30 days or dated in the future; identity unresolved; ETF holdings not 100% screened |
 
    In MODERATE strictness, AFSC and Who Profits matches are FLAGGED instead of EXCLUDED, and an ETF's excluded weight up to 5% is FLAGGED. Absence from a list is "reviewed, no match", never "clean".
-5. **Equity ETFs:** screen the full holdings file and record `screened_weight_pct`, `excluded_weight_pct` and `flagged_weight_pct`. Each is a percentage from 0 to 100; screened must be 100, and excluded + flagged can't exceed it. Anything else is UNVERIFIED. If the excluded weight is material, offer a basket of screened individual names instead.
+5. **Equity ETFs:** start with AFSC's own fund screen, `https://investigate.afsc.org/fund-search?keyword=TICKER&strict=0` (it looks through the fund's holdings: red = owns BDS divestment-shortlist companies, with the shortlist and total counts). Then check the holdings against the full Who Profits list (fetch all `/index.php/companies?page=N` pages in one in-page script), the BDS targets and the OHCHR list. Record it all, then screen the full holdings file and record `screened_weight_pct`, `excluded_weight_pct` and `flagged_weight_pct`. Each is a percentage from 0 to 100; screened must be 100, and excluded + flagged can't exceed it. Anything else is UNVERIFIED. If the excluded weight is material, offer a basket of screened individual names instead.
 6. **Metal trusts and T-bill ETFs:** screen the sponsor, trustee, custodian and issuer. Ask the user once how to treat US government bonds (Part D).
 7. Pass the result to `size_trade.py` with `--boycott-result`. It expires after 30 days.
 
@@ -680,6 +697,15 @@ Flag each one; label it **Verified** only with a current source.
 
 ## 12. Output
 
+### Order of the output (v4.9)
+
+1. **SCREENS**: one row per idea: boycott result + reference (which list, link, date checked), halal result + reference (methodology, the failed ratio or the structural reason, link).
+2. **YOUR OPTIONS**: every idea as a lettered option with its engine numbers and labels, plus KEEP CASH, and one RECOMMENDED letter (a clean option that passes the risk rules, else cash). In flag mode, flagged options are listed and marked "your decision".
+3. **WHAT TO DO NOW**: numbered app steps for the recommended option.
+4. Details per idea, then sources.
+
+`render_simple.py` and `render_dashboard.py` build 1–3 from the engine files; you never write them by hand.
+
 ### Simple (default): plain "caveman" style
 
 Short lines, short words, no jargon. Every number comes from the engine.
@@ -689,10 +715,10 @@ Short lines, short words, no jargon. Every number comes from the engine.
 
 ```
 python3 "$SKILL_DIR/scripts/render_simple.py" --plans PLAN1.json PLAN2.json [--signals SIG_*.json] \
-  --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE."
+  --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE." [--skipped "XYZ|why dropped"]
 ```
 
-Pass a plan file for **every** ticker you considered, including the ones that failed a screen, so each NO BUY prints. Every NO BUY and WAIT prints every reason: a plain `WHY:` line, the facts behind it (which boycott list, which Shariah ratio, which source is stale), a `FIX:` line, and the engine's full text. A NO BUY also prints `ALSO NEEDED:` lines for what would still be missing once the blocking reasons are fixed (sources, earnings date, signals, a live price). Never shorten or drop a reason.
+Pass a plan file for **every** ticker you screened (tickers dropped before screening go in `--skipped`), including the ones that failed a screen, so each NO BUY prints. Every NO BUY and WAIT prints every reason: a plain `WHY:` line, the facts behind it (which boycott list, which Shariah ratio, which source is stale), a `FIX:` line, and the engine's full text. A NO BUY also prints `ALSO NEEDED:` lines for what would still be missing once the blocking reasons are fixed (sources, earnings date, signals, a live price). Never shorten or drop a reason.
 
 Example (real engine output from the v4.8 tests: $10,000 account, balanced, medium hold, Bank al Etihad fees, AAOIFI and boycott screens in exclude mode, test fixtures for the company and sources):
 

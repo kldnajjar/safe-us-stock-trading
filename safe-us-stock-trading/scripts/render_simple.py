@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Simple ("caveman") output for the safe-us-stock-trading skill (v4.8).
+"""Simple ("caveman") output for the safe-us-stock-trading skill (v4.9).
 
 Short plain lines. Every number is copied from the engine JSON; nothing is recomputed.
 v4.8: every NO BUY and WAIT prints ALL its reasons in plain words, what to do about each,
 and the engine's full reason text; every plan prints the sources it was built on.
 
   python3 render_simple.py --plans PLAN1.json PLAN2.json \
-      [--market "MARKET CALM. FED WAIT."] [--metals "GOLD WAIT."] [--events "JOBS FRI. CPI TUE."]
+      [--market "MARKET CALM. FED WAIT."] [--metals "GOLD WAIT."] [--events "JOBS FRI. CPI TUE."] \
+      [--skipped "XYZ|top holdings on boycott lists"]
+
+v4.9: a "WHAT TO DO NOW" block comes first: numbered steps copied from the engine numbers (or, with no
+buy, what to do instead and the closest idea). A plan whose only blockers are screens that were never
+run is not a researched idea: it is listed once under SKIPPED instead of a red NO BUY block.
 """
 import argparse, json, os, sys
 
@@ -27,7 +32,62 @@ def short_reason(r):
     return r[:90]
 
 
+def _url(x):
+    return x if str(x or "").startswith("http") else ""
+
+
+def halal_ref(sh):
+    """v4.9: (label, reference) for the Shariah result, e.g. ('NOT HALAL', 'SS-21: interest_debt over limit ...')."""
+    if not sh or sh.get("mode") == "off" or sh.get("screened") is False:
+        return "NOT CHECKED", "screen not run"
+    pol = sh.get("policy_decision")
+    label = {"PERMITTED": "HALAL", "REQUIRES_ACCEPTANCE": "HALAL IF YOU ACCEPT", "EXCLUDED": "NOT HALAL",
+             "UNVERIFIED": "NOT CHECKED"}.get(pol, "NOT CHECKED")
+    meth = (sh.get("methodology") or "").split(",")[0]
+    why = "; ".join((sh.get("reasons") or [])[:2])
+    src = sh.get("rules_source") if isinstance(sh.get("rules_source"), str) else (sh.get("rules_source") or {}).get("url", "")
+    ref = " ".join(x for x in (f"METHOD {meth}" if meth else "", (f"- {why}" if meth else why) if why else "",
+                               f"REF {_url(src)}" if _url(src) else "") if x)
+    return label, ref
+
+
+def boycott_ref(b):
+    """v4.9: (label, reference) for the boycott result, naming each list that matched and its link."""
+    if not b or b.get("mode") == "off" or b.get("screened") is False:
+        return "NOT CHECKED", "screen not run"
+    st = str(b.get("status", "")).lower()
+    label = {"reviewed_no_match": "NOT ON LISTS", "flagged": "FLAGGED", "excluded": "ON BOYCOTT LIST",
+             "unverified": "NOT FULLY CHECKED"}.get(st, "NOT CHECKED")
+    srcs = b.get("sources_checked") or {}
+    hits = [f"{k.upper()} {v.get('url', '')}".strip() for k, v in srcs.items() if v.get("finding") == "match"]
+    checked = sorted({v.get("checked_on") for v in srcs.values() if v.get("checked_on")})
+    if hits:
+        ref = "LISTED BY: " + "; ".join(hits)
+    elif st == "reviewed_no_match":
+        ref = f"{len(srcs)} SOURCES CHECKED {checked[-1] if checked else ''}: " + ", ".join(k.upper() for k in srcs)
+    else:
+        ref = "; ".join((b.get("reasons") or [])[:2])
+    extra = [r for r in (b.get("reasons") or [])[:2] if not r.lower().startswith("listed by")]
+    if st in ("excluded", "flagged", "unverified") and extra and hits:
+        ref += " - " + "; ".join(extra)
+    return label, ref
+
+
+def is_clean(d):
+    """Passes both screens: not on a boycott list, and halal (or halal with the user's recorded OK)."""
+    b, _ = boycott_ref(d.get("boycott"))
+    h, _ = halal_ref(d.get("shariah"))
+    return b == "NOT ON LISTS" and h in ("HALAL", "HALAL IF YOU ACCEPT")
+
+
 def halal_line(sh):
+    if sh and sh.get("mode") == "flag" and sh.get("screened") is not False:
+        label, ref = halal_ref(sh)
+        if label in ("NOT HALAL", "HALAL IF YOU ACCEPT", "NOT CHECKED"):
+            out = [f"  HALAL: {label}" + (" (FLAG ONLY: YOU DECIDE)" if label != "HALAL IF YOU ACCEPT" else "")]
+            if ref:
+                out.append(f"    {ref}")
+            return out
     if not sh or sh.get("mode") == "off":
         return ["  HALAL: NOT CHECKED. SCREEN WAS OFF."]
     if sh.get("screened") is False:
@@ -45,6 +105,10 @@ def halal_line(sh):
 
 
 def boycott_line(b):
+    if b and b.get("mode") == "flag" and b.get("screened") is not False:
+        label, ref = boycott_ref(b)
+        if label != "NOT ON LISTS":
+            return [f"  BOYCOTT: {label} (FLAG ONLY: YOU DECIDE)", f"    {ref}"]
     if not b or b.get("mode") == "off":
         return ["  BOYCOTT: NOT CHECKED. SCREEN WAS OFF."]
     if b.get("screened") is False:
@@ -365,7 +429,128 @@ def signal_no_buys(signals, planned):
     return out
 
 
-def render(plans, market="", metals="", events="", signals=None):
+UNRUN = ("screen not run", "screen is mandatory", "sources not checked", "quote status 'unknown'",
+         "no --market-price", "sources not fresh or incomplete")
+
+
+def never_researched(d):
+    """v4.9: True when the plan was blocked only because its screens/data were never gathered."""
+    rs = [str(r).lower() for r in (d.get("reasons") or [])]
+    return bool(rs) and any("screen not run" in r for r in rs) and all(any(u in r for u in UNRUN) for r in rs)
+
+
+def screen_rows(plans):
+    """v4.9: one row per screened ticker: (ticker, boycott label, boycott ref, halal label, halal ref)."""
+    rows = []
+    order = sorted(plans, key=lambda x: (x.get("verdict") != "TRADE", not is_clean(x)))
+    for d in order:
+        bl, br = boycott_ref(d.get("boycott"))
+        hl, hr = halal_ref(d.get("shariah"))
+        rows.append(((d.get("ticker") or "?").upper(), bl, br, hl, hr))
+    return rows
+
+
+def screen_table_lines(plans):
+    rows = screen_rows(plans)
+    if not rows:
+        return []
+    out = ["SCREENS (EVERY IDEA, WITH REFERENCES):"]
+    for t, bl, br, hl, hr in rows:
+        out.append(f"  {t}: BOYCOTT {bl} | HALAL {hl}")
+        out.append(f"    BOYCOTT REF: {br}")
+        out.append(f"    HALAL REF: {hr}")
+    return out + [""]
+
+
+def option_rows(plans):
+    """v4.9: every idea as a lettered option, plus KEEP CASH. Returns (rows, recommended_letter)."""
+    rows, rec = [], None
+    trades = [d for d in plans if d.get("verdict") == "TRADE" and plan_is_trade(d) and d.get("asset") != "tbill"]
+    others = [d for d in plans if d not in trades]
+    letters = iter("ABCDEFGHIJ")
+    for d in sorted(trades, key=lambda x: not is_clean(x)) + others:
+        L, t = next(letters), (d.get("ticker") or "?").upper()
+        bl, _ = boycott_ref(d.get("boycott"))
+        hl, _ = halal_ref(d.get("shariah"))
+        labels = f"BOYCOTT {bl} / HALAL {hl}"
+        if d in trades:
+            tr = d.get("tranches") or [{}]
+            pe = d.get("partial_exit_plan") or {}
+            profit = pe.get("combined_net_profit") if pe.get("feasible") else d.get("net_profit_full_exit_t1")
+            text = (f"BUY {d['shares']} {t} AT {px(tr[0].get('price', 0))} LIMIT. RISK {money(d['downside']['executable_stop_downside'])} "
+                    f"(GAP {money(d['gap_scenario']['loss'])}). PROFIT IF TARGETS HIT {money(profit or 0)}.")
+            if rec is None and is_clean(d):
+                rec = L
+        else:
+            why, _ = explain((d.get("reasons") or [""])[0])
+            text = f"{t}: ENGINE SAYS NO. {why or (d.get('reasons') or ['?'])[0]}"
+        rows.append((L, text, labels, d in trades))
+    L = next(letters)
+    rows.append((L, "KEEP CASH. $0 RISK, $0 GAIN.", "", True))
+    return rows, rec or L
+
+
+def option_lines(plans):
+    rows, rec = option_rows(plans)
+    out = ["YOUR OPTIONS:"]
+    for L, text, labels, _ in rows:
+        out.append(f"  {L}. {text}" + (f" [{labels}]" if labels else ""))
+    rtext = next(t for L, t, _, _ in rows if L == rec)
+    out.append(f"  RECOMMENDED: {rec}. {'CLEAN ON BOTH SCREENS AND PASSES YOUR RISK RULES.' if 'KEEP CASH' not in rtext else 'NO CLEAN TRADE PASSES TODAY.'}")
+    flagged = [L for L, t, lab, ok in rows if ok and lab and ("ON BOYCOTT LIST" in lab or "NOT HALAL" in lab or "FLAGGED" in lab)]
+    if flagged:
+        out.append(f"  FLAGGED OPTIONS {', '.join(flagged)}: SHOWN BECAUSE YOU CHOSE FLAG. YOUR DECISION.")
+    return out + [""]
+
+
+def action_lines(plans, events="", skipped=()):
+    """v4.9: numbered steps the user can follow in the app. Numbers copied from the engine."""
+    out, n = ["WHAT TO DO NOW:"], 0
+
+    def step(text):
+        nonlocal n
+        n += 1
+        out.append(f"  {n}. {text}")
+
+    trades = [d for d in plans if d.get("verdict") == "TRADE" and plan_is_trade(d)]
+    rows, rec = option_rows(plans)
+    rec_t = next((t for L, t, _, _ in rows if L == rec), "")
+    trades = [d for d in trades if d.get("asset") == "tbill" or (f" {(d.get('ticker') or '').upper()} AT " in rec_t)]
+    for d in trades:
+        t = (d.get("ticker") or "?").upper()
+        if d.get("asset") == "tbill":
+            step(f"BUY {d['shares']} {t} WITH A LIMIT ORDER, ABOUT {money(d['order_value'] + d['buy_fee'])} (CASH PARKING).")
+            continue
+        tr = d.get("tranches") or []
+        if len(tr) == 1:
+            step(f"IN YOUR APP: LIMIT BUY {tr[0]['shares']} {t} AT {px(tr[0]['price'])}, GOOD-TILL-CANCEL.")
+        else:
+            step(f"IN YOUR APP: LIMIT BUYS {t}: " + ", ".join(f"{x['shares']} @ {px(x['price'])}" for x in tr) + ".")
+        if d.get("horizon") == "long":
+            step(f"SET A PRICE ALERT AT {px(d['stop_level'])}. IF HIT: REVIEW, NOT AUTO SELL.")
+        else:
+            step(f"WHEN IT FILLS: STOP ORDER AT {px(d['stop_level'])} FOR ALL SHARES.")
+        pe = d.get("partial_exit_plan") or {}
+        if pe.get("feasible"):
+            step(f"THEN SELL ORDERS: {pe['sell_at_t1']} AT {px(d['t1_level'])}, {pe['hold_for_t2']} AT {px(d['t2_level'])}.")
+        else:
+            step(f"THEN SELL ORDER: ALL AT {px(d['t1_level'])}.")
+        step(f"IF {t} NEVER DIPS TO YOUR PRICE: NO FILL, CASH STAYS. THAT IS FINE.")
+    if trades:
+        step("TELL ME WHEN IT FILLS. I RECORD IT AND RE-CHECK RISK.")
+    else:
+        step("DO NOTHING TODAY. KEEP CASH. NO TRADE IS A GOOD RESULT.")
+        near = [d for d in plans if d.get("verdict") in ("WATCHLIST", "NO TRADE") and d.get("tranches")
+                and not never_researched(d)]
+        for d in near[:2]:
+            t = (d.get("ticker") or "?").upper()
+            why, fix = explain((d.get("reasons") or [""])[0])
+            step(f"CLOSEST IDEA: {t}. BLOCKED: {why or 'SEE BELOW'} {('NEXT: ' + fix) if fix else ''}".rstrip())
+        step("RE-RUN ME" + (f" AFTER: {events.upper()}" if events else " TOMORROW") + ".")
+    return out + [""]
+
+
+def render(plans, market="", metals="", events="", signals=None, skipped=()):
     lines = []
     first = next((d for d in plans if d.get("profile")), None)
     if first:
@@ -389,7 +574,18 @@ def render(plans, market="", metals="", events="", signals=None):
         lines.append(f"WATCH: {events.upper()}")
     if lines:
         lines.append("")
+    skip_lines = [f"  {x.split('|')[0].strip().upper()}: {x.split('|', 1)[1].strip().upper() if '|' in x else 'NOT A CANDIDATE'}"
+                  for x in skipped]
+    kept = []
+    for d in plans:
+        if never_researched(d):
+            skip_lines.append(f"  {(d.get('ticker') or '?').upper()}: NOT RESEARCHED (SCREENS NOT RUN). NOT A CANDIDATE.")
+        else:
+            kept.append(d)
+    plans = kept
+    lines += screen_table_lines(plans) + option_lines(plans) + action_lines(plans, events)
     buys, waits, nos = [], [], []
+    plans = sorted(plans, key=lambda x: (x.get("verdict") != "TRADE", not is_clean(x)))
     for d in plans:
         t = (d.get("ticker") or d.get("asset", "?")).upper()
         v = d.get("verdict")
@@ -416,6 +612,8 @@ def render(plans, market="", metals="", events="", signals=None):
     lines += buys + waits + ([""] if waits and nos else []) + nos
     if waits or nos:
         lines.append("")
+    if skip_lines:
+        lines += ["SKIPPED:"] + skip_lines + [""]
     ms = market_sources(plans)
     if ms:
         lines += ms + [""]
@@ -430,6 +628,8 @@ def main(argv=None):
     ap.add_argument("--metals", default="")
     ap.add_argument("--events", default="")
     ap.add_argument("--signals", nargs="*", default=[], help="signals.py outputs; AVOID names get a NO BUY with the why")
+    ap.add_argument("--skipped", action="append", default=[],
+                    help='v4.9: "TICKER|why it was dropped before screening", one line each under SKIPPED')
     a = ap.parse_args(argv)
     plans = []
     for p in a.plans:
@@ -442,7 +642,7 @@ def main(argv=None):
     for p in a.signals:
         with open(p) as f:
             sigs.append(json.load(f))
-    sys.stdout.write(render(plans, a.market, a.metals, a.events, sigs))
+    sys.stdout.write(render(plans, a.market, a.metals, a.events, sigs, a.skipped))
 
 
 if __name__ == "__main__":
