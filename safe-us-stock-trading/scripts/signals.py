@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Long-only signals for the safe-us-stock-trading skill (v4.6), computed from real daily prices.
+"""Long-only signals for the safe-us-stock-trading skill (v4.8), computed from real daily prices.
 
 Formulas follow Kakushadze & Serur, "151 Trading Strategies" (2018, SSRN 3247865). Only the
 long-only parts are used; shorting, options, leverage and pairs/stat-arb are out of scope here.

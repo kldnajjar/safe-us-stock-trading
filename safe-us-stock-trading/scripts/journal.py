@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Trade journal for the safe-us-stock-trading skill (v4.6): does the skill actually make money?
+"""Trade journal for the safe-us-stock-trading skill (v4.8): does the skill actually make money?
 
 Records every plan the user acted on and every real fill, then reports results after fees and
 purification, in R (multiples of the planned loss at the stop), and against a benchmark fund

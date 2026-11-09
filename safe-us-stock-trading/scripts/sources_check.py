@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Source freshness and accuracy check for the safe-us-stock-trading skill (v4.6).
+"""Source freshness and accuracy check for the safe-us-stock-trading skill (v4.8).
 
 Every number and claim the skill reports comes from a source ledger. This script checks each
 entry against the maintainer registry (sources.json) and the SYSTEM CLOCK:

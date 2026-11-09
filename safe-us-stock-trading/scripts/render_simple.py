@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Simple ("caveman") output for the safe-us-stock-trading skill (v4.6).
+"""Simple ("caveman") output for the safe-us-stock-trading skill (v4.8).
 
 Short plain lines. Every number is copied from the engine JSON; nothing is recomputed.
-v4.6: every NO BUY and WAIT prints ALL its reasons in plain words, what to do about each,
+v4.8: every NO BUY and WAIT prints ALL its reasons in plain words, what to do about each,
 and the engine's full reason text; every plan prints the sources it was built on.
 
   python3 render_simple.py --plans PLAN1.json PLAN2.json \
@@ -65,7 +65,7 @@ def quote_line(d):
     return [f"  PRICE SEEN {q['time']} ({status}, {q.get('source') or 'SOURCE?'}){mp}. GOOD ONLY FOR THIS PRICE."]
 
 
-# v4.6: plain-language reasons. (pattern in the engine text, lower case) -> (why, what to do)
+# v4.8: plain-language reasons. (pattern in the engine text, lower case) -> (why, what to do)
 EXPLAIN = [
     # specific patterns first: explain() stops at the first match
     ("edited file?", "THIS PLAN FILE WAS CHANGED AFTER THE ENGINE MADE IT.", "RUN THE ENGINE AGAIN. NEVER EDIT PLAN FILES."),
@@ -200,7 +200,7 @@ def reason_block(d):
     for r in reasons:
         out += _one(d, r)
     if d.get("verdict") == "NO TRADE":
-        for r in d.get("also_needed") or []:      # v4.6: what would still be missing once the above is fixed
+        for r in d.get("also_needed") or []:      # v4.8: what would still be missing once the above is fixed
             out += _one(d, r, label="ALSO NEEDED")
     return out
 
@@ -349,7 +349,7 @@ def render_tbill(d):
 
 
 def signal_no_buys(signals, planned):
-    """v4.6: tickers dropped by the signals (151 Trading Strategies filters) still get a NO BUY with the why."""
+    """v4.8: tickers dropped by the signals (151 Trading Strategies filters) still get a NO BUY with the why."""
     out = []
     for sg in signals or []:
         t = str(sg.get("ticker", "?")).upper()

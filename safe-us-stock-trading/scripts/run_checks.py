@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-command dependency and test check for the safe-us-stock-trading skill (v4.6).
+"""One-command dependency and test check for the safe-us-stock-trading skill (v4.8).
 
   python3 "$SKILL_DIR/scripts/run_checks.py"
 
@@ -11,13 +11,13 @@ import io, json, os, sys, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REQUIRED = ["size_trade.py", "portfolio_state.py", "shariah_screen.py", "boycott_screen.py", "fees.py",
-            "render_simple.py", "methodologies.json", "brokers.json",
+            "render_simple.py", "render_dashboard.py", "methodologies.json", "brokers.json",
             "sources_check.py", "sources.json", "signals.py", "market_clock.py", "ledger.py", "journal.py",
-            "test_v46_mandatory.py",
+            "test_v48_mandatory.py",
             "test_size_trade.py", "test_audit_regressions.py", "test_integration.py",
             "test_v42_followup.py", "test_v43_policy.py",
             "test_v43_independent.py", "test_v44_hardening.py",
-            "test_v44_independent_followup.py", "test_v45_hardening.py"]
+            "test_v44_independent_followup.py", "test_v45_hardening.py", "test_dashboard.py"]
 
 
 WARN_DAYS = 30

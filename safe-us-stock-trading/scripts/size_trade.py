@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Position sizing and trade-lifecycle engine for the safe-us-stock-trading skill (v4.6).
+"""Position sizing and trade-lifecycle engine for the safe-us-stock-trading skill (v4.8).
 
-v4.6: BOTH SCREENS ARE MANDATORY. --boycott-mode / --shariah-mode take exclude (default policy) or
+v4.8: BOTH SCREENS ARE MANDATORY. --boycott-mode / --shariah-mode take exclude (default policy) or
 flag; "off" is refused (NO TRADE), and flag mode still needs a valid result file (it only changes
 whether an EXCLUDED name blocks). SOURCES ARE MANDATORY: --sources-check (sources_check.py output)
 is re-validated against the system clock at sizing time; missing, stale, conflicting or incomplete
@@ -79,9 +79,9 @@ import sources_check  # noqa: E402
 import market_clock  # noqa: E402
 import signals as signals_mod  # noqa: E402
 
-SCREENS_REQUIRED = True   # v4.6: tests only; the command line can never turn the screens off
-SOURCES_REQUIRED = True   # v4.6: tests only; the command line can never skip the source check
-MARKET_CLOCK_REQUIRED = True   # v4.6: executable only during the NYSE regular session (tests only turn it off)
+SCREENS_REQUIRED = True   # v4.8: tests only; the command line can never turn the screens off
+SOURCES_REQUIRED = True   # v4.8: tests only; the command line can never skip the source check
+MARKET_CLOCK_REQUIRED = True   # v4.8: executable only during the NYSE regular session (tests only turn it off)
 # Fresh sources each ticker needs before a plan can be executable (sources.json categories).
 TICKER_SOURCES = {
     ("stock", "short"): ["quote", "price_history", "earnings_date"],
@@ -92,7 +92,7 @@ TICKER_SOURCES = {
     "tbill": ["quote"],
 }
 MARKET_SOURCES_MIN = {"news": 2, "official": 1}   # official = macro_release + market_series
-# v4.6 profitability gates
+# v4.8 profitability gates
 MAX_FEE_SHARE_SHORT = 0.25        # short-term: round-trip costs may not eat more than 25% of the gross profit at T1
 EARNINGS_WINDOW_DAYS = {"short": 21, "medium": 56}   # short: 15 trading days; medium: the 8-week review
 SIGNALS_MAX_LAG_DAYS = 4
@@ -238,11 +238,11 @@ def build_parser():
     ap.add_argument("--state", type=str, default="", help="portfolio_state.py output JSON")
     ap.add_argument("--as-of", default="", help="today's date YYYY-MM-DD")
     ap.add_argument("--boycott-mode", choices=["exclude", "flag", "off"], required=True,
-                    help="exclude or flag (v4.6: off is refused, the screen is mandatory)")
+                    help="exclude or flag (v4.8: off is refused, the screen is mandatory)")
     ap.add_argument("--boycott-result", default="", help="JSON file written by boycott_screen.py --out")
     ap.add_argument("--accept-flagged", action="store_true")
     ap.add_argument("--shariah-mode", choices=["exclude", "flag", "off"], required=True,
-                    help="exclude or flag (v4.6: off is refused, the screen is mandatory)")
+                    help="exclude or flag (v4.8: off is refused, the screen is mandatory)")
     ap.add_argument("--sources-check", default="", help="SOURCES_CHECK.json from sources_check.py (required)")
     ap.add_argument("--next-earnings", default="", help="next earnings date YYYY-MM-DD (stocks; from the ledger)")
     ap.add_argument("--accept-earnings-gap", action="store_true",
@@ -628,7 +628,7 @@ def gate_reasons(a):
     return mandatory + identity + b + s
 
 
-# --------------------------------------------------------------------------- sources (v4.6)
+# --------------------------------------------------------------------------- sources (v4.8)
 def sources_gate(a):
     """(watch_reason or None, summary). Re-runs the source check on the embedded ledger with the clock."""
     if not a.sources_check:
@@ -680,7 +680,7 @@ def sources_gate(a):
     return None, summary
 
 
-# --------------------------------------------------------------------------- v4.6 profitability gates
+# --------------------------------------------------------------------------- v4.8 profitability gates
 def _today(a):
     """The later of --as-of and the clock's date: counting from an older --as-of would push upcoming
     earnings out of the holding window."""

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Source-ledger helper for the safe-us-stock-trading skill (v4.6).
+"""Source-ledger helper for the safe-us-stock-trading skill (v4.8).
 
 Adds one source per command, so nobody hand-writes ledger JSON. The source is recognised from the
 URL's site (sources.json), "observed_at" defaults to now, and each entry is checked the moment it

@@ -1,6 +1,6 @@
-# safe-us-stock-trading v4.6: verification and treasury audit
+# safe-us-stock-trading v4.8: verification and treasury audit
 
-**Date:** 2026-11-09 · **Scope:** the whole skill (SKILL.md and every script) · **Result:** all money figures independently confirmed to the cent; every control tested; 59 findings fixed across four review rounds; 395 tests passing.
+**Date:** 2026-11-09 · **Scope:** the whole skill (SKILL.md and every script) · **Result:** all money figures independently confirmed to the cent; every control tested; 59 findings fixed across four review rounds; 412 tests passing.
 
 This is research software. Nothing here means the skill makes money: that can only be shown by the trade journal over 20+ closed trades (section 8c of SKILL.md).
 
@@ -8,12 +8,12 @@ This is research software. Nothing here means the skill makes money: that can on
 
 | Round | Who | Method | Findings fixed |
 |---|---|---|---|
-| Code review | Independent agent, not shown the author's reasoning | Read the v4.6 code, reproduced each defect by running it | 10 |
+| Code review | Independent agent, not shown the author's reasoning | Read the v4.8 code, reproduced each defect by running it | 10 |
 | End-to-end run | Author | Ran the documented workflow through the real command-line tools | 4 |
 | Adversarial audit | Second independent agent | Tried to get a TRADE while breaking each promised rule; doc/code consistency; crashes | 15 + 2 from the author's own run |
 | Treasury audit | Third independent agent (blind recomputation) + author (controls) | Rebuilt the money math from the written rules before reading the engine; tested controls | 5 |
 
-Every finding has a regression test in `scripts/test_v46_mandatory.py` (or the older suites), so it can't return unnoticed.
+Every finding has a regression test in `scripts/test_v48_mandatory.py` (or the older suites), so it can't return unnoticed.
 
 ## 2. Money math: independent recomputation
 

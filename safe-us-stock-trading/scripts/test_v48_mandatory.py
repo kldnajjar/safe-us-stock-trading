@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v4.6 tests: mandatory boycott + Shariah screens, mandatory fresh sources, full NO BUY reasons,
+"""v4.8 tests: mandatory boycott + Shariah screens, mandatory fresh sources, full NO BUY reasons,
 the NYSE clock, the ledger helper, and the long-only signals from 151 Trading Strategies.
 Gates are switched ON here."""
 import copy, datetime as dt, json, math, os, subprocess, sys, tempfile, unittest
@@ -413,7 +413,7 @@ class Expiry(unittest.TestCase):
 
 
 class ReviewRegressions(Gates):
-    """One test per finding of the independent v4.6 review (and four from the end-to-end run)."""
+    """One test per finding of the independent v4.8 review (and four from the end-to-end run)."""
 
     def test_f2_each_wait_reason_explained_separately(self):
         led = ledger(q0=dict(observed_at="2026-11-05T14:30:00-05:00"), q3=dict(event_date=None))  # stale quote, no date
@@ -746,6 +746,41 @@ class TreasuryControls(Gates):
         brk = jn.reconcile(j, dict(holdings=[dict(ticker="ABC", shares=7), dict(ticker="ZZZ", shares=3)]))
         self.assertFalse(brk["ok"])
         self.assertEqual({r["ticker"]: r["difference"] for r in brk["rows"]}, {"ABC": -2, "ZZZ": 3})
+
+
+class DashboardParity(Gates):
+    """The HTML dashboard follows the same rules as the text output."""
+
+    def page(self, plans):
+        import render_dashboard as rd
+        return rd.render(plans)
+
+    def test_every_reason_with_fix(self):
+        r = full(boycott_result=bres(ohchr="match"), shariah_result=sres(interest_debt=900, total_debt=900))
+        html_ = self.page([r])
+        self.assertIn("COMPANY IS ON A BOYCOTT LIST.", html_)
+        self.assertIn("NOT HALAL UNDER YOUR METHOD.", html_)
+        self.assertGreaterEqual(html_.count("<b>Fix:</b>"), 2)
+
+    def test_also_needed_shown(self):
+        r = full(boycott_result=bres(ohchr="match"), sources_check="")
+        self.assertIn("Also needed", self.page([r]))
+
+    def test_edited_verdict_not_a_buy(self):
+        fake = dict(full(quote_status="previous_close"), verdict="TRADE")
+        html_ = self.page([fake])
+        self.assertIn("THIS PLAN FILE WAS CHANGED AFTER THE ENGINE MADE IT.", html_)
+        self.assertIn("NO BUY TODAY", html_)
+
+    def test_sources_fees_trend_lines(self):
+        html_ = self.page([full(signals=sig_file())])
+        for text in ("PRICE FROM: Nasdaq", "NUMBERS FROM: SEC EDGAR", "Fee schedule: user-provided, NOT verified",
+                     "Trend: OK", "https://www.bls.gov/"):
+            self.assertIn(text, html_)
+
+    def test_market_closed_banner(self):
+        st.CLOCK = sc.CLOCK = lambda: dt.datetime(2026, 11, 26, 15, 5, tzinfo=dt.timezone.utc)
+        self.assertIn("NYSE closed (NYSE holiday: Thanksgiving Day)", self.page([full(as_of="2026-11-26")]))
 
 
 class MarketClock(Gates):

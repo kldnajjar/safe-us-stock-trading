@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""NYSE clock for the safe-us-stock-trading skill (v4.6). Standard library only, no network.
+"""NYSE clock for the safe-us-stock-trading skill (v4.8). Standard library only, no network.
 
   python3 market_clock.py                 # now
   python3 market_clock.py --at 2026-11-26T15:00:00Z
