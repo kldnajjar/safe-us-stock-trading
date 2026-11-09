@@ -53,7 +53,8 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 - Ask **exactly one question per message**. With AskUserQuestion, put **one** question in the call, never a batch. Wait for the answer before asking the next.
 - Start each question with a short progress tag, e.g. **"Question 3 of 14"** for setup, or **"One more question"** later in the run. The total is an estimate; update it when a branch adds or removes questions.
 - Use a picker (AskUserQuestion options) when the answers are a short fixed list. Ask in plain text when the answer is a number, a ticker or a list the user types.
-- **Skip** any question the user has already answered, in this message or earlier in the session, and say which saved answer you used in a few words ("Using your Bank al Etihad fees from last time").
+- **Skip** a question only if the user answered it **in this session** (this message or earlier in this conversation). An answer from an earlier session, from memory, or inferred from context (location, language, a past chat) is **never used silently**: ask the question and offer the saved answer as the first picker option, marked "(last time)".
+- **Never infer** platform, account currency or tax residency. Where the user lives is not their tax residency, and one user can have several platforms. Always ask A5 and A6.
 - Follow-ups are their own question. If an answer opens a branch (picked a range, picked "Other", said they hold stocks), the next message asks only that follow-up.
 - Never ask for anything you can look up (prices, filings, news) or calculate (portfolio value, limits).
 - If the user says "skip", "not sure" or "I don't know", take the safe default listed for that question, say so in one line, and move on.
@@ -69,20 +70,22 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 | A2a | *(tickers)* Which tickers? / *(theme)* Which sector or theme? | typed, or a theme picker: Tech/AI · Healthcare · Dividends/defensive · Gold/silver | none: required for that branch |
 | A3 | How long will you hold? | Short (days–8 weeks) · Medium (2–12 months) · Long (12+ months) | Medium |
 | A4 | How much risk? | Safe · Balanced · Aggressive (show the per-stock cap and planned loss per idea for each) | Safe |
+| A5 | Which platform is this trade on? (every session) | one option per non-template profile in `scripts/brokers.json` (today: Bank al Etihad, Robinhood), the last-used one first marked "(last time)" · Other (type its name) | none: required (no fee schedule means NO TRADE) |
+| A5a | *(Other)* How does it charge? | Percent of order · Per share · Flat per order · Commission-free | none: required |
+| A5b | *(Other)* What are the numbers? Ask only the fields that model needs: rate, minimum, maximum (percent); per-share fee, minimum, max % of order (per share); fee per order (flat). Plus any minimum order size. | typed | none: required |
+| A6 | Which country are you tax-resident in? (every session) | the last answer first marked "(last time)" · Jordan · United States · Other (type it) | flag the tax checks (section 10) as Unavailable; never assume one |
 
-**Part B: the account (first session only; reuse the answers afterwards)**
+**Part B: the platform's details (ask once per platform; when the user picks a platform in A5 whose details were not given in this session, confirm them in one question: "Same as last time for Robinhood: USD account, stop orders yes?" Yes · Something changed)**
 
 | # | Question | Picker options / answer | Safe default if skipped |
 |---|---|---|---|
-| B1 | Which platform do you trade on? | the non-template profiles in `scripts/brokers.json` · Other | none: required (no fee schedule means NO TRADE) |
-| B1a | *(Other)* How does it charge? | Percent of order · Per share · Flat per order · Commission-free | none: required |
-| B1b | *(Other)* What are the numbers? Ask only the fields that model needs: rate, minimum, maximum (percent); per-share fee, minimum, max % of order (per share); fee per order (flat). Plus any minimum order size. | typed | none: required |
 | B2 | Which currency does the trading account hold? | USD · Other (type it) | USD (cross-currency plans stay WATCHLIST) |
 | B3 | Can your app place stop-loss orders on US stocks? | Yes · No, only limit orders · Not sure | Not sure (`--stop-orders unknown`) |
 | B4 | The boycott screen (companies complicit with Israel) always runs. How should it be applied? | Exclude (a listed company is never planned) · Flag only (every idea shown as an option, labelled with the list and link, you decide) | Exclude |
 | B5 | The Shariah (halal) screen always runs. How should it be applied? | Exclude · Flag only (shown labelled "not halal" with the methodology, failed ratio and reference) | Exclude |
 | B5a | Which Shariah methodology? | AAOIFI (default) · MSCI Islamic Index Series · MSCI Islamic M-Series · S&P Shariah · DJIM | AAOIFI |
-| B6 | Which country are you tax-resident in? | typed | flag the tax checks (section 10) as Unavailable |
+
+B4–B5a apply to every platform. In a later session, confirm them in one question ("Screens as last time: boycott flag, Shariah flag, AAOIFI?" Yes · Change) instead of reusing them silently.
 
 **Part C: the portfolio (every session; if you have last session's answers, ask once "Has anything changed since last time?" and only re-ask what changed)**
 
@@ -146,7 +149,7 @@ These limits are design defaults, not validated optimal allocations.
 ## 2. Platform and fees (`scripts/brokers.json`)
 
 - **Built-in profiles (v4.9):** `bank-al-etihad-jo` (0.5% per order, $0.50 min, $30 max, user-provided) and `robinhood` (commission-free US stocks/ETFs, verified 2026-11-09 against Robinhood's fee page; tiny SEC/FINRA fees on sells are covered by `--friction-bps`; uninvested cash may earn interest, so flag purification when the Shariah screen is on). US Robinhood accounts are for US residents.
-- **More than one platform:** ask once which account this trade is for (B1), build that account's state only (cash, holdings and orders as that app shows them), and size against it. Never mix cash or holdings across apps; mention holdings in the other app only for sector and concentration context the user gives.
+- **More than one platform:** ask which account this trade is for (A5), build that account's state only (cash, holdings and orders as that app shows them), and size against it. Never mix cash or holdings across apps; mention holdings in the other app only for sector and concentration context the user gives.
 - Every fee is charged **per order** by the engine, from a broker profile (`--broker ID`) or explicit flags. There is no default fee schedule: without one, the engine returns NO TRADE.
 - Fee models:
 
