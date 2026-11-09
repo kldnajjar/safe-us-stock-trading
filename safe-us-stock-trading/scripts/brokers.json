@@ -1,5 +1,5 @@
 {
-  "registry_version": "2026-11-05",
+  "registry_version": "2026-11-09",
   "notes": "Fee schedules per trading platform. Every profile is USER-PROVIDED unless 'verified_source' is set. Add a platform by copying a template below and filling in the user's actual schedule. The assistant never edits this file during a session.",
   "fee_models": {
     "percent":   "fee = clamp(rate x order value, min, max) per order",
@@ -18,6 +18,21 @@
       "ptp_withholding_pct": 10,
       "source": "user-provided",
       "verified_source": null
+    },
+    "robinhood": {
+      "name": "Robinhood (Robinhood Financial, US), stocks and ETFs",
+      "fee": {"model": "zero"},
+      "min_order": 1.0,
+      "currency": "USD",
+      "cash_interest": "yes (uninvested cash sweep / Gold interest): flag purification when the Shariah screen is on",
+      "order_types": "limit and stop orders on US stocks and ETFs (confirm per ticker in the app)",
+      "fractional_shares": true,
+      "regulatory_fees_on_sells": "SEC fee + FINRA TAF on sells only (cents on a typical order); covered by --friction-bps",
+      "ptp_withholding_pct": 10,
+      "eligibility": "US Robinhood accounts are for US residents; Robinhood UK/EU/SG are separate entities with FX fees",
+      "source": "verified",
+      "verified_source": "https://robinhood.com/us/en/support/articles/trading-fees-on-robinhood",
+      "verified_on": "2026-11-09"
     },
     "template-percent": {
       "name": "TEMPLATE: percent of order value",

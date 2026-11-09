@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 ![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
-![Tests: 412](https://img.shields.io/badge/tests-412%20passing-brightgreen)
+![Tests: 424](https://img.shields.io/badge/tests-424%20passing-brightgreen)
 ![Audited](https://img.shields.io/badge/money%20math-independently%20verified-brightgreen)
 
 [Status](#status-ready-for-paper-trading) · [Quick start](#quick-start) · [What you get](#what-you-get) · [Why NO TRADE](#why-youll-often-see-no-trade) · [How it works](#how-it-works) · [Configuration](#configuration) · [Safety design](#safety-design) · [Contributing](#contributing)
@@ -58,9 +58,35 @@ The engine is verified: an independent recomputation matched every dollar figure
 | 📊 **Dashboard every run** | One self-contained HTML page: portfolio, limits used, a BUY / WAIT / NO BUY card per idea with every reason and its sources |
 | 📒 **Trade journal** | Paper and real trades; win rate, average R, totals after fees and charity, comparison with a benchmark, reconciliation with your app |
 
-Both screens are **always on**. You choose *exclude* (default: failing names are never planned) or *flag only* (screened and labelled; you decide).
+Both screens are **always on**. You choose *exclude* (default: failing names are never planned) or *flag only* (every screened idea is shown as an option, labelled with its result and the reference behind it: which list and link, or which Shariah ratio failed; you decide).
 
 ### Plain-language output
+
+Since v4.9 every output opens with the screens (with references), your lettered options with one recommendation, and the steps to follow in your app:
+
+```text
+SCREENS (EVERY IDEA, WITH REFERENCES):
+  GLDM: BOYCOTT NOT ON LISTS | HALAL HALAL IF YOU ACCEPT
+    BOYCOTT REF: 5 SOURCES CHECKED 2026-11-09: OHCHR, BDS, AFSC, WHOPROFITS, SEC
+    HALAL REF: structure verified from fund documents, but no Shariah certificate
+  XYZ: BOYCOTT ON BOYCOTT LIST | HALAL NOT HALAL
+    BOYCOTT REF: LISTED BY: AFSC https://investigate.afsc.org/company/xyz
+    HALAL REF: METHOD SS-21 - interest_debt 41% > 30%
+
+YOUR OPTIONS:
+  A. BUY 19 GLDM AT 78.00 LIMIT. RISK $71.10 (GAP $142.06). PROFIT IF TARGETS HIT $287.41.
+  B. BUY 10 XYZ AT 50.00 LIMIT. ... [BOYCOTT ON BOYCOTT LIST / HALAL NOT HALAL]
+  C. KEEP CASH. $0 RISK, $0 GAIN.
+  RECOMMENDED: A. CLEAN ON BOTH SCREENS AND PASSES YOUR RISK RULES.
+  FLAGGED OPTIONS B: SHOWN BECAUSE YOU CHOSE FLAG. YOUR DECISION.
+
+WHAT TO DO NOW:
+  1. IN YOUR APP: LIMIT BUY 19 GLDM AT 78.00, GOOD-TILL-CANCEL.
+  2. WHEN IT FILLS: STOP ORDER AT 75.10 FOR ALL SHARES.
+  3. THEN SELL ORDERS: 9 AT 88.60, 10 AT 99.00.
+```
+
+The per-idea details follow (example from v4.8):
 
 ```text
 RISK: BALANCED. HOLD: MEDIUM.
@@ -229,6 +255,8 @@ These limits are conservative design defaults, not proven optimal allocations. L
 
 Fee profiles live in [`brokers.json`](safe-us-stock-trading/scripts/brokers.json). There is **no default fee schedule**: without one, the engine returns NO TRADE.
 
+Built in: `bank-al-etihad-jo` (0.5% per order, $0.50 min, $30 max; user-provided) and `robinhood` (commission-free US stocks and ETFs, verified 2026-11-09 against Robinhood's fee page; the small SEC/FINRA fees on sells are covered by `--friction-bps`; US accounts are for US residents). Pass `--budget AMOUNT` so an order never exceeds the money you set aside for it.
+
 1. Copy a template (`template-percent`, `template-per-share`, `template-flat`, `template-zero`) and give it a new id.
 2. Fill in your schedule and remove `"template": true`.
 3. Run `run_checks.py`.
@@ -349,7 +377,7 @@ Claude's sandbox blocks most finance sites by default. Allowing `sec.gov`, `data
 │       ├── brokers.json              # broker fee profiles and templates
 │       ├── methodologies.json        # Shariah rules registry
 │       ├── sources.json              # ranked source registry and freshness rules
-│       └── test_*.py                 # 412 tests
+│       └── test_*.py                 # 424 tests
 ├── AUDIT-v4.8.md                     # verification and treasury audit record
 ├── docs/dashboard-preview.png
 ├── .github/                          # CI, issue and PR templates
@@ -378,7 +406,8 @@ It prints a JSON report and exits with code 0 only if every file is present, all
 | `test_v45_hardening.py` | Unclassified worst case, cent grid, order states | 17 |
 | `test_dashboard.py` | Verbatim numbers, safety lines, escaping | 12 |
 | `test_v48_mandatory.py` | v4.8 with every gate on: screens, sources, market hours, signals, earnings, fees, journal, dashboard parity, one test per review finding | 109 |
-| **Total** | | **412** |
+| `test_v49_actions.py` | v4.9: screens table with references, options and recommendation, flag labels, SKIPPED, `--budget`, Robinhood profile | 12 |
+| **Total** | | **424** |
 
 The pre-v4.8 suites switch off the three v4.8 gates (screens, sources, market hours) with a short block at the top of each file, so each keeps testing the gate it was written for. Fixtures pin the engine's clock inside the test process; the command line can't set it.
 

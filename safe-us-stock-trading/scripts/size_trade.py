@@ -275,6 +275,9 @@ def build_parser():
     ap.add_argument("--gap-pct", type=float, default=5.0)
     # T-bill inputs
     ap.add_argument("--amount", type=float)
+    ap.add_argument("--budget", type=float,
+                    help="v4.9: money for this trade (question A1); caps the order cost incl. buy fees. "
+                         "Limits still use the whole portfolio")
     ap.add_argument("--price", type=float)
     ap.add_argument("--tbill-exposure", type=float, default=0.0)
     ap.add_argument("--yield-pct", type=float)
@@ -360,7 +363,7 @@ def validate_inputs(a):
     for n in ("cash", "committed", "ticker_exposure", "open_stop_risk", "open_review_risk", "unquantified_value",
               "metals_exposure", "tbill_exposure", "friction_bps", "expense_ratio_pct", "spread_bps", "min_order"):
         need(n, nonneg, "must be zero or more")
-    for n in ("entry", "stop", "t1", "t2", "amount", "price", "hold_months", "gap_pct", "market_price"):
+    for n in ("entry", "stop", "t1", "t2", "amount", "budget", "price", "hold_months", "gap_pct", "market_price"):
         need(n, pos, "must be a positive number")
     for n in ("yield_pct", "duration_yrs", "rate_shock_pct"):
         need(n, nonneg, "must be zero or more")
@@ -861,10 +864,15 @@ def common(a, p):
     floor = p["cash_floor"] * a.portfolio
     available = a.cash - a.committed - floor
     warnings = []
+    budget = getattr(a, "budget", None)
+    if budget is not None and a.asset != "tbill":
+        # v4.9: the user's "how much this time" (question A1) caps the order cost incl. buy fees
+        available = min(available, budget)
     if a.unquantified_holdings > 0:
         warnings.append(f"{a.unquantified_holdings} existing holding(s) have no stop/review level: risk UNQUANTIFIED, not zero")
     accounting = dict(settled_cash=round(a.cash, 2), unfilled_commitments=round(a.committed, 2),
-                      cash_floor=round(floor, 2), available_cash=round(available, 2))
+                      cash_floor=round(floor, 2), available_cash=round(available, 2),
+                      budget=None if budget is None else round(budget, 2))
     return available, accounting, warnings
 
 
