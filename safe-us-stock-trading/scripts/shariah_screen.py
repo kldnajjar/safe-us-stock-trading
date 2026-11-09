@@ -29,7 +29,7 @@ Stock inputs ($ unless noted; collect each separately from the filing):
 Certificates (etf-certified, and metals for PERMITTED): --certifier, --certificate-date (<= --as-of and at
 most 400 days old), and --certificate-url (https link to the certificate or fund page that states it).
 """
-import argparse, datetime as dt, hashlib, json, operator, os
+import argparse, math, datetime as dt, hashlib, json, operator, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REGISTRY = os.path.join(HERE, "methodologies.json")
@@ -215,6 +215,11 @@ def pick_version(reg, a):
     return v, None
 
 
+def cents_up(x):
+    """Charity owed is rounded UP to the cent, never down (tolerates float noise like 2.2500000001)."""
+    return math.ceil(round(x * 100, 6)) / 100
+
+
 def purification(a, v):
     meth = v["purification"]["method"]
     if a.fund_purifies == "yes":
@@ -232,7 +237,7 @@ def purification(a, v):
                         note="sold before the end of the financial period (3/4/6/1)")
         per_share = a.nonpermissible_income / a.shares_outstanding
         return dict(base, status="DUE", period=a.period, per_share_usd=round(per_share, 6),
-                    amount_usd=round(per_share * a.shares_held, 2),
+                    amount_usd=cents_up(per_share * a.shares_held),
                     note="due whether or not profits were distributed (3/4/6/2)")
     need = dict(period=a.period or None, nonpermissible_income=a.nonpermissible_income,
                 total_income=a.total_income, dividend_per_share=a.dividend_per_share, shares_held=a.shares_held)
@@ -242,7 +247,7 @@ def purification(a, v):
         return dict(base, status="UNAVAILABLE", missing=missing)
     ratio = a.nonpermissible_income / a.total_income
     return dict(base, status="DUE", period=a.period,
-                amount_usd=round(a.dividend_per_share * a.dividends_count * a.shares_held * ratio, 2))
+                amount_usd=cents_up(a.dividend_per_share * a.dividends_count * a.shares_held * ratio))
 
 
 def screen_stock(a, reg):
@@ -437,8 +442,15 @@ def validate_result(res, ticker, as_of, registry_path=REGISTRY, expected_asset=N
         today = dt.date.fromisoformat(as_of)
     except (TypeError, ValueError):
         return "UNVERIFIED", ["--as-of date is required to check the Shariah result"]
-    if today > dt.date.fromisoformat(res["expires_on"]):
-        return "UNVERIFIED", [f"Shariah result expired on {res['expires_on']}; re-screen"]
+    try:
+        made = dt.date.fromisoformat(res["as_of"])
+    except (TypeError, ValueError):
+        return "UNVERIFIED", ["Shariah result has no valid as_of date"]
+    if str((res.get("inputs") or {}).get("as_of", "")) != res["as_of"]:
+        return "UNVERIFIED", ["Shariah result date does not match its recorded inputs"]
+    expires = made + dt.timedelta(days=RESULT_VALID_DAYS)      # recomputed: the stored expires_on is not trusted
+    if today > expires:
+        return "UNVERIFIED", [f"Shariah result expired on {expires.isoformat()}; re-screen"]
     if today < dt.date.fromisoformat(res["as_of"]):
         return "UNVERIFIED", ["Shariah result is dated in the future"]
     if res["asset"] == "stock":

@@ -5,6 +5,11 @@
 import io, json, os, sys, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import size_trade as _st_v46  # noqa: E402
+# v4.6: these v4.x suites isolate one gate at a time, so the mandatory screen and source gates are
+# switched off here (module switch, like CLOCK). test_v46_mandatory.py tests them switched on.
+_st_v46.SCREENS_REQUIRED = _st_v46.SOURCES_REQUIRED = _st_v46.MARKET_CLOCK_REQUIRED = False
 import size_trade as st  # noqa: E402
 import portfolio_state as ps  # noqa: E402
 import shariah_screen as sh  # noqa: E402
@@ -21,7 +26,7 @@ _REAL_CLOCK = None
 
 
 # The real command-line entry point (size_trade.main), run in a subprocess with the clock pinned.
-PINNED_CLI = ("import sys, datetime as d; sys.path.insert(0, %r); import size_trade as s; "
+PINNED_CLI = ("import sys, datetime as d; sys.path.insert(0, %r); import size_trade as s; s.SCREENS_REQUIRED = s.SOURCES_REQUIRED = s.MARKET_CLOCK_REQUIRED = False; "
               "s.CLOCK = lambda: d.datetime(2026, 11, 5, 20, 35, tzinfo=d.timezone.utc); "
               "sys.argv[0] = 'size_trade.py'; s.main(sys.argv[1:])" % os.path.dirname(os.path.abspath(__file__)))
 
@@ -633,7 +638,7 @@ class Purification(unittest.TestCase):
     def test_aaoifi_attributable_usd(self):
         p = res(held_at_period_end="yes", **PUR)["purification"]
         self.assertEqual(p["status"], "DUE")
-        self.assertAlmostEqual(p["amount_usd"], 45.19, places=2)
+        self.assertAlmostEqual(p["amount_usd"], 45.20, places=2)   # v4.6: exact 45.19x, charity owed rounds UP
         self.assertEqual(p["period"], "FY2025")
         self.assertIn("3/4/6", p["method"])
 
@@ -911,7 +916,10 @@ class SimpleOutput(unittest.TestCase):
         import render_simple as rs
         text = rs.render([run(boycott_mode="exclude", boycott_result=bres(ohchr="match")),
                           run(quote_status="previous_close")])
-        self.assertIn("NO BUY ABC: boycott screen: excluded", text)
+        self.assertIn("NO BUY ABC\n  WHY: COMPANY IS ON A BOYCOTT LIST.", text)   # v4.6: full reason
+        self.assertIn("FOUND ON: OHCHR", text)
+        self.assertIn("FIX: NONE. SKIP IT.", text)
+        self.assertIn("(ENGINE: boycott screen: excluded", text)
         self.assertIn("WAIT ABC", text)
         self.assertIn("NO BUY TODAY", text)
 

@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Position sizing and trade-lifecycle engine for the safe-us-stock-trading skill (v4.5).
+"""Position sizing and trade-lifecycle engine for the safe-us-stock-trading skill (v4.6).
+
+v4.6: BOTH SCREENS ARE MANDATORY. --boycott-mode / --shariah-mode take exclude (default policy) or
+flag; "off" is refused (NO TRADE), and flag mode still needs a valid result file (it only changes
+whether an EXCLUDED name blocks). SOURCES ARE MANDATORY: --sources-check (sources_check.py output)
+is re-validated against the system clock at sizing time; missing, stale, conflicting or incomplete
+sources -> WATCHLIST. SCREENS_REQUIRED / SOURCES_REQUIRED are module switches that only the test
+suite turns off (like CLOCK); nothing on the command line can.
 
 All money in the account currency (USD for US stocks). Fees come from a broker
 profile in brokers.json (--broker ID) or an explicit --fee-model. There is no
@@ -68,6 +75,28 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fees import make_fee, make_fee_model, broker_profile  # noqa: E402,F401
 import shariah_screen  # noqa: E402
 import boycott_screen  # noqa: E402
+import sources_check  # noqa: E402
+import market_clock  # noqa: E402
+import signals as signals_mod  # noqa: E402
+
+SCREENS_REQUIRED = True   # v4.6: tests only; the command line can never turn the screens off
+SOURCES_REQUIRED = True   # v4.6: tests only; the command line can never skip the source check
+MARKET_CLOCK_REQUIRED = True   # v4.6: executable only during the NYSE regular session (tests only turn it off)
+# Fresh sources each ticker needs before a plan can be executable (sources.json categories).
+TICKER_SOURCES = {
+    ("stock", "short"): ["quote", "price_history", "earnings_date"],
+    ("stock", "medium"): ["quote", "price_history", "earnings_date", "fundamentals", "consensus"],
+    ("stock", "long"): ["quote", "price_history", "earnings_date", "fundamentals", "consensus"],
+    "etf": ["quote", "price_history", "fund_holdings"],
+    "metal": ["quote", "price_history"],
+    "tbill": ["quote"],
+}
+MARKET_SOURCES_MIN = {"news": 2, "official": 1}   # official = macro_release + market_series
+# v4.6 profitability gates
+MAX_FEE_SHARE_SHORT = 0.25        # short-term: round-trip costs may not eat more than 25% of the gross profit at T1
+EARNINGS_WINDOW_DAYS = {"short": 21, "medium": 56}   # short: 15 trading days; medium: the 8-week review
+SIGNALS_MAX_LAG_DAYS = 4
+SIGNALS_PRICE_WARN, SIGNALS_PRICE_BLOCK = 0.05, 0.20   # signals' last close vs the market price
 
 PROFILES = {
     "safe":       dict(stock_cap=0.05, etf_cap=0.25, metals_max=0.20, risk=0.005, open_risk=0.03,
@@ -105,6 +134,16 @@ TICK = 0.01
 MIN_PRICE = 1.00          # below $1, US quotes use sub-penny ticks; levels here are on a one-cent grid
 UNCLASSIFIED = "Unclassified"
 OTHER_SECTOR = "(any other sector)"
+
+
+def up2(x):
+    """Losses and costs shown rounded UP to the cent (treasury audit: never understate a loss)."""
+    return math.ceil(round(x * 100, 6)) / 100
+
+
+def down2(x):
+    """Profits shown rounded DOWN to the cent (never overstate a gain)."""
+    return math.floor(round(x * 100, 6)) / 100
 
 
 def on_tick(x, tick=TICK):
@@ -198,10 +237,20 @@ def build_parser():
                     help="TICKER|limit|LIMIT_PRICE|SHARES the user verified in the app for THIS order")
     ap.add_argument("--state", type=str, default="", help="portfolio_state.py output JSON")
     ap.add_argument("--as-of", default="", help="today's date YYYY-MM-DD")
-    ap.add_argument("--boycott-mode", choices=["exclude", "flag", "off"], required=True)
+    ap.add_argument("--boycott-mode", choices=["exclude", "flag", "off"], required=True,
+                    help="exclude or flag (v4.6: off is refused, the screen is mandatory)")
     ap.add_argument("--boycott-result", default="", help="JSON file written by boycott_screen.py --out")
     ap.add_argument("--accept-flagged", action="store_true")
-    ap.add_argument("--shariah-mode", choices=["exclude", "flag", "off"], required=True)
+    ap.add_argument("--shariah-mode", choices=["exclude", "flag", "off"], required=True,
+                    help="exclude or flag (v4.6: off is refused, the screen is mandatory)")
+    ap.add_argument("--sources-check", default="", help="SOURCES_CHECK.json from sources_check.py (required)")
+    ap.add_argument("--next-earnings", default="", help="next earnings date YYYY-MM-DD (stocks; from the ledger)")
+    ap.add_argument("--accept-earnings-gap", action="store_true",
+                    help="the user accepts holding a short-term trade through earnings (gap risk)")
+    ap.add_argument("--signals", default="", help="SIG_TICKER.json from signals.py")
+    ap.add_argument("--dividend-yield-pct", type=float, help="trailing dividend yield, percent")
+    ap.add_argument("--dividend-withholding-pct", type=float,
+                    help="US withholding on dividends for the user's tax residency, percent (30 without a treaty)")
     ap.add_argument("--shariah-result", default="", help="JSON file written by shariah_screen.py --out")
     ap.add_argument("--accept-shariah-review", action="store_true")
     # price-trade inputs
@@ -333,6 +382,24 @@ def validate_inputs(a):
     return bad
 
 
+def _sector_key(s):
+    return " ".join(str(s).split()).casefold()
+
+
+def normalise_sectors(w, ps):
+    """Merge sector names that differ only in case or spacing ("Technology", "technology ") so an alias
+    can't escape a sector cap. The portfolio's own label wins."""
+    label = {}
+    for k in list(ps) + list(w):
+        label.setdefault(_sector_key(k), UNCLASSIFIED if _sector_key(k) == _sector_key(UNCLASSIFIED) else " ".join(str(k).split()))
+    nw, nps = {}, {}
+    for k, x in w.items():
+        nw[label[_sector_key(k)]] = nw.get(label[_sector_key(k)], 0.0) + x
+    for k, x in ps.items():
+        nps[label[_sector_key(k)]] = nps.get(label[_sector_key(k)], 0.0) + x
+    return nw, nps
+
+
 def parse_sector_weights(a):
     """Returns (weights, port_sectors, problems)."""
     probs = []
@@ -349,6 +416,8 @@ def parse_sector_weights(a):
     for s, x in ps.items():
         if not finite(x) or x < 0:
             probs.append(f"portfolio sector exposure for '{s}' must be zero or more (got {x})")
+    if not probs:
+        w, ps = normalise_sectors(w, ps)
     if a.asset in COUNTED_ASSETS and not w:
         probs.append("--sector-weights is required for stocks and ETFs (sector data missing)")
     if w and not probs and abs(sum(w.values()) - 1) > SECTOR_SUM_TOL:
@@ -387,6 +456,18 @@ def quote_check(a):
     if a.quote_status == "live" and age > LIVE_MAX_AGE:
         return (f"live quote is {int(age.total_seconds() // 60)} minutes old (limit "
                 f"{int(LIVE_MAX_AGE.total_seconds() // 60)}): refresh it")
+    if MARKET_CLOCK_REQUIRED:
+        ms = market_clock.status(clock)
+        if not ms["open"]:
+            return (f"NYSE is closed now ({ms['reason']}; New York time {ms['now_new_york'][11:16]}); next open "
+                    f"{ms.get('next_open_new_york', 'unknown')} New York time: levels are conditional")
+        if not ms["calendar_known"]:
+            return (f"NYSE holiday list not loaded for {clock.year}: today could be a holiday; levels are conditional "
+                    f"until a maintainer adds the year ({market_clock.CALENDAR_SOURCE})")
+        q_ny, now_ny = market_clock.to_new_york(qt.astimezone(dt.timezone.utc)), market_clock.to_new_york(clock)
+        if q_ny.date() != now_ny.date() or q_ny.time().replace(tzinfo=None) < market_clock.OPEN:
+            return (f"quote time {a.quote_time} is from before today's open (New York {q_ny.isoformat(timespec='minutes')}): "
+                    "get a quote from the current session")
     if a.quote_status == "delayed":
         if a.quote_delay_min is None or a.quote_delay_min > MAX_DELAY_MIN:
             return f"delayed quote without a stated delay of {MAX_DELAY_MIN} minutes or less: not executable"
@@ -470,14 +551,17 @@ def shariah_check(a):
         try:
             with open(a.shariah_result) as f:
                 res = json.load(f)
-            pol, why = shariah_screen.validate_result(res, a.ticker, a.as_of,
+            pol, why = shariah_screen.validate_result(res, a.ticker, _today(a).isoformat() if a.as_of else a.as_of,
                                                       expected_asset=SHARIAH_ASSET[a.asset], isin=a.isin)
         except Exception as e:
             pol, why, res = "UNVERIFIED", [f"Shariah result unreadable: {e}"], {}
     screened = not why
     summary = dict(mode=a.shariah_mode, policy_decision=pol, screened=screened, methodology=res.get("methodology"),
                    screening_result=res.get("screening_result"), purification=res.get("purification"),
-                   validation=why or ["valid"])
+                   as_of=res.get("as_of"), period=(res.get("data") or {}).get("period"),
+                   data_published=(res.get("data") or {}).get("data_published"),
+                   market_cap_date=(res.get("data") or {}).get("market_cap_date"), rules_source=res.get("source"),
+                   reasons=res.get("reasons"), validation=why or ["valid"])
     block = []
     if a.shariah_mode == "exclude":
         if pol in ("EXCLUDED", "UNVERIFIED"):
@@ -496,12 +580,17 @@ def boycott_check(a):
         try:
             with open(a.boycott_result) as f:
                 res = json.load(f)
-            status, why = boycott_screen.validate_result(res, a.ticker, a.asset, a.isin, a.as_of)
+            status, why = boycott_screen.validate_result(res, a.ticker, a.asset, a.isin,
+                                                         _today(a).isoformat() if a.as_of else a.as_of)
         except Exception as e:
             status, why, res = "UNVERIFIED", [f"boycott result unreadable: {e}"], {}
     screened = not why
+    srcs = ((res.get("evidence") or {}).get("sources") or {})
     summary = dict(mode=a.boycott_mode, status=status, screened=screened, strictness=res.get("strictness"),
                    reasons=res.get("reasons"), ohchr_involvement=res.get("ohchr_involvement"),
+                   as_of=res.get("as_of"),
+                   sources_checked={k: dict(finding=v.get("finding"), checked_on=v.get("checked_on"), url=v.get("url"))
+                                    for k, v in srcs.items() if isinstance(v, dict)},
                    validation=why or ["valid"])
     block = []
     if a.boycott_mode == "exclude":
@@ -523,7 +612,224 @@ def gate_reasons(a):
                           f"this {a.asset} has NOT been {name}-screened"
                           for name, summ in (("boycott", a._boycott_summary), ("Shariah", a._shariah_summary))
                           if summ.get("mode") == "flag" and not summ.get("screened")]
-    return identity + b + s
+    mandatory = []
+    if SCREENS_REQUIRED:
+        a._screen_warnings = []
+        for name, mode, summ, tool in (("boycott", a.boycott_mode, a._boycott_summary, "boycott_screen.py"),
+                                       ("Shariah", a.shariah_mode, a._shariah_summary, "shariah_screen.py")):
+            if mode == "off":
+                mandatory.append(f"{name} screen is mandatory and was set to off: run {tool} and pass "
+                                 f"--{name.lower()}-mode exclude|flag with its result file")
+            elif name == "Shariah" and a.asset == "tbill":
+                continue   # interest-bearing by definition: exclude blocks, flag warns; no file needed
+            elif mode == "flag" and not summ.get("screened"):
+                mandatory.append(f"{name} screen not run: flag mode still needs a valid result file from {tool} "
+                                 f"({'; '.join(summ.get('validation') or ['no result file'])})")
+    return mandatory + identity + b + s
+
+
+# --------------------------------------------------------------------------- sources (v4.6)
+def sources_gate(a):
+    """(watch_reason or None, summary). Re-runs the source check on the embedded ledger with the clock."""
+    if not a.sources_check:
+        if not SOURCES_REQUIRED:
+            return None, dict(checked=False)
+        return ("sources not checked: run sources_check.py on the source ledger and pass --sources-check",
+                dict(checked=False))
+    try:
+        with open(a.sources_check) as f:
+            prev = json.load(f)
+        if prev.get("schema") != sources_check.SCHEMA or not isinstance(prev.get("ledger"), dict):
+            raise ValueError("not a sources_check.py result")
+        chk = sources_check.check(prev["ledger"], now=CLOCK())
+    except Exception as e:
+        return f"source check unreadable: {e}", dict(checked=False)
+    t = (a.ticker or "").upper()
+    need = TICKER_SOURCES.get((a.asset, a.horizon)) or TICKER_SOURCES.get(a.asset) or ["quote"]
+    have = chk["tickers"].get(t, {})
+    problems = list(chk["blocking"])
+    missing = [c for c in need if not have.get(c)]
+    if missing:
+        problems.append(f"{t}: no fresh source for {', '.join(missing)}")
+    official = chk["market"].get("macro_release", 0) + chk["market"].get("market_series", 0)
+    if chk["market"].get("news", 0) < MARKET_SOURCES_MIN["news"] or official < MARKET_SOURCES_MIN["official"]:
+        problems.append("market picture needs at least 2 fresh news items and 1 fresh official release or "
+                        "market series (Fed, BLS, BEA, Treasury, FRED, Cboe, CME)")
+    quotes = [r for r in chk["items"] if r.get("category") == "quote" and str(r.get("ticker", "")).upper() == t
+              and r["status"] == "FRESH"]
+    if a.market_price is not None and a.quote_time and quotes:
+        try:
+            qt = parse_quote_time(a.quote_time)
+            if not any(abs(q["value"] - a.market_price) < 0.005 and
+                       sources_check.parse_when(q["observed_at"])[0] == qt for q in quotes):
+                problems.append(f"--market-price {a.market_price} at {a.quote_time} is not a quote in the source "
+                                "ledger: size against a recorded quote")
+        except ValueError:
+            pass
+    keep = ("id", "category", "ticker", "source_name", "tier", "url", "observed_at", "published_at", "form", "event_date",
+            "period_end", "what", "value", "status", "problems")
+    summary = dict(checked=True, ok=not problems, checked_at=chk["checked_at"],
+                   ticker_items=[{k: r.get(k) for k in keep if r.get(k) is not None} for r in chk["items"]
+                                 if str(r.get("ticker", "")).upper() == t],
+                   market_items=[{k: r.get(k) for k in keep if r.get(k) is not None} for r in chk["items"]
+                                 if not r.get("ticker")],
+                   warnings=[w for w in chk["warnings"] if w.startswith(f"{t}:") or w.startswith("news ")],
+                   problems=problems)
+    if problems:
+        return "sources not fresh or incomplete: " + "; ".join(problems[:4]), summary
+    return None, summary
+
+
+# --------------------------------------------------------------------------- v4.6 profitability gates
+def _today(a):
+    """The later of --as-of and the clock's date: counting from an older --as-of would push upcoming
+    earnings out of the holding window."""
+    try:
+        return max(dt.date.fromisoformat(a.as_of), CLOCK().date())
+    except (TypeError, ValueError):
+        return CLOCK().date()
+
+
+def asset_label_check(a):
+    """A company (earnings dates, 10-Q/10-K numbers in the ledger) can't be traded as a metal trust or T-bill fund,
+    which would skip the stock gates."""
+    if a.asset not in ("metal", "tbill"):
+        return []
+    cats = {i.get("category") for i in (a._sources_summary.get("ticker_items") or [])}
+    hits = sorted(cats & {"earnings_date", "fundamentals", "consensus"})
+    if hits:
+        return [f"{a.ticker.upper()} has company data in the source ledger ({', '.join(hits)}) but is sized as "
+                f"--asset {a.asset}: a company is a stock; use --asset stock"]
+    return []
+
+
+def earnings_gate(a):
+    """(block, watch, warnings, summary). Short-term trades are not held through earnings unless accepted."""
+    if a.asset != "stock":
+        return [], None, [], dict(applies=False)
+    ledger_dates = sorted({str(i.get("event_date")) for i in (a._sources_summary.get("ticker_items") or [])
+                           if i.get("category") == "earnings_date" and i.get("status") == "FRESH" and i.get("event_date")})
+    extra = []
+    if ledger_dates:
+        if a.next_earnings and a.next_earnings != ledger_dates[0]:
+            return [f"--next-earnings {a.next_earnings} does not match the earliest earnings date in the source ledger "
+                    f"({ledger_dates[0]}): the earliest recorded date always applies"], None, [], \
+                dict(applies=True, date=a.next_earnings, ledger_dates=ledger_dates)
+        a.next_earnings = ledger_dates[0]
+        if len(ledger_dates) > 1:
+            extra = [f"sources disagree on the earnings date ({', '.join(ledger_dates)}): the earliest is used"]
+    elif SOURCES_REQUIRED and a.next_earnings:
+        return [], ("earnings date not recorded in the source ledger (earnings_date entry with --event-date): "
+                    "the date can't be checked"), [], dict(applies=True, date=a.next_earnings)
+    if not a.next_earnings:
+        w = ("next earnings date not given (--next-earnings): gap risk through earnings is unchecked"
+             if SOURCES_REQUIRED else None)
+        return [], w, [], dict(applies=True, date=None)
+    try:
+        ed = dt.date.fromisoformat(a.next_earnings)
+    except ValueError:
+        return ["--next-earnings must be YYYY-MM-DD"], None, [], dict(applies=True, date=a.next_earnings)
+    today = _today(a)
+    days = (ed - today).days
+    summary = dict(applies=True, date=ed.isoformat(), days_away=days, accepted_gap=bool(a.accept_earnings_gap))
+    if days < 0:
+        return [], f"earnings date {ed} has passed: look up the next one", extra, summary
+    window = EARNINGS_WINDOW_DAYS.get(a.horizon)
+    if window and days <= window:
+        summary["inside_window"] = True
+        if a.horizon == "short" and not a.accept_earnings_gap:
+            return [f"earnings on {ed} ({days} days away) fall inside the short-term holding window: short-term "
+                    "trades are not held through earnings unless the user accepts the gap risk "
+                    "(--accept-earnings-gap)"], None, extra, summary
+        return [], None, extra + [f"earnings on {ed} ({days} days away) inside the {a.horizon}-term window: prices can "
+                                  f"gap past the stop; use a gap % of at least the stock's usual earnings move"], summary
+    return [], None, extra, summary
+
+
+def signals_gate(a):
+    """(block, watch, warnings, summary) from a signals.py result for this ticker."""
+    if a.asset == "tbill":
+        return [], None, [], dict(applies=False)
+    if not a.signals:
+        if SOURCES_REQUIRED and a.horizon == "short":
+            return [], "signals not run (signals.py): short-term entries need the trend check", [], dict(checked=False)
+        return [], None, ["signals not run (signals.py): trend and momentum filters unchecked"], dict(checked=False)
+    try:
+        with open(a.signals) as f:
+            sg = json.load(f)
+    except Exception as e:
+        return [f"signals file unreadable: {e}"], None, [], dict(checked=False)
+    if sg.get("schema") != "signals/1" or str(sg.get("ticker", "")).upper() != (a.ticker or "").upper():
+        return [f"signals file is for {sg.get('ticker')}, not {a.ticker.upper()}"], None, [], dict(checked=False)
+    inp = sg.get("inputs") or {}
+    try:
+        fresh = signals_mod.one(sg["ticker"], signals_mod.validate_rows(inp["rows"]),
+                                signals_mod.validate_rows(inp["market_rows"]) if inp.get("market_rows") else None,
+                                inp.get("eps"))
+    except Exception as e:
+        return [f"signals file has no usable recorded prices ({e}): re-run signals.py"], None, [], dict(checked=False)
+    changed = [k for k in ("hint", "flags", "price", "history_through", "momentum_12_1") if fresh.get(k) != sg.get(k)]
+    if changed:
+        return [f"signals file does not match a recomputation from its own prices ({', '.join(changed)}): "
+                "re-run signals.py"], None, [], dict(checked=False)
+    sg = fresh
+    summary = dict(checked=True, hint=sg.get("hint"), flags=sg.get("flags"), history_through=sg.get("history_through"),
+                   momentum_12_1=sg.get("momentum_12_1"), ma200=(sg.get("sma") or {}).get("ma200"),
+                   market_regime=(sg.get("market_regime") or {}).get("state"))
+    try:
+        lag = (CLOCK().date() - dt.date.fromisoformat(sg["history_through"])).days
+    except (KeyError, TypeError, ValueError):
+        return [], "signals file has no valid history date: re-run signals.py", [], summary
+    if lag < 0:
+        return [f"signals prices run to {sg['history_through']}, after today: wrong price file"], None, [], summary
+    if lag > SIGNALS_MAX_LAG_DAYS:
+        return [], f"signals use prices up to {sg['history_through']} ({lag} days old): re-run signals.py", [], summary
+    gap_warn = []
+    gap = abs(float(sg["price"]) / a.market_price - 1) if a.market_price else 0.0
+    summary["price_vs_market_pct"] = round(100 * gap, 2)
+    if gap > SIGNALS_PRICE_BLOCK:
+        return [f"signals file price {sg.get('price')} is {100 * gap:.1f}% away from the market price "
+                f"{a.market_price}: wrong ticker or wrong price file"], None, [], summary
+    if gap > SIGNALS_PRICE_WARN:
+        gap_warn = [f"signals' last close {sg.get('price')} is {100 * gap:.1f}% from the market price "
+                    f"{a.market_price}: check the price file is this ticker's, split-adjusted"]
+    flags = "; ".join(sg.get("flags") or [])
+    if sg.get("hint") == "AVOID":
+        return [f"signals say avoid: {flags}"], None, gap_warn, summary
+    if sg.get("hint") == "CAUTION" and a.horizon == "short":
+        return [f"signals say caution ({flags}): no short-term entry; consider a medium/long horizon"], None, gap_warn, summary
+    if sg.get("hint") == "CAUTION":
+        return [], None, gap_warn + [f"signals caution: {flags}"], summary
+    if sg.get("hint") == "UNKNOWN":
+        if a.horizon == "short":
+            return [], f"signals unknown ({flags}): short-term entries need enough price history for the trend check", gap_warn, summary
+        return [], None, gap_warn + [f"signals unknown (not enough price history): {flags}"], summary
+    return [], None, gap_warn, summary
+
+
+def dividend_view(a, value, warnings):
+    if a.dividend_yield_pct is None:
+        return None
+    y = a.dividend_yield_pct
+    if not math.isfinite(y) or y < 0:
+        warnings.append("dividend yield ignored: must be zero or more")
+        return None
+    w = a.dividend_withholding_pct
+    if w is None:
+        warnings.append("dividend withholding rate not given: net dividend unknown (30% applies without a US tax treaty)")
+        return dict(gross_yield_pct=y, withholding_pct=None, net_yield_pct=None)
+    if not (0 <= w <= 30):
+        warnings.append("dividend withholding must be 0-30%: ignored")
+        return dict(gross_yield_pct=y, withholding_pct=None, net_yield_pct=None)
+    net = y * (1 - w / 100)
+    out = dict(gross_yield_pct=y, withholding_pct=w, net_yield_pct=round(net, 3),
+               est_annual_gross=round(value * y / 100, 2), est_annual_tax=round(value * y * w / 10000, 2),
+               est_annual_net=round(value * net / 100, 2),
+               note="estimate from the trailing yield; payouts change")
+    if a.horizon == "long" and w >= 30 and y >= 2:
+        warnings.append(f"dividend yield {y:g}% loses {w:g}% to US withholding ({net:.2f}% net): for long holds, "
+                        "a low-dividend name or an Irish-domiciled UCITS fund may keep more")
+    return out
 
 
 # --------------------------------------------------------------------------- state
@@ -545,6 +851,7 @@ def load_state(a):
     by_ticker = args.get("ticker_exposure", {})
     names = [a.ticker.upper()] + [t.strip().upper() for t in a.related_tickers.split(",") if t.strip()]
     a.ticker_exposure = sum(by_ticker.get(t, 0.0) for t in names)
+    a.own_ticker_exposure = by_ticker.get(a.ticker.upper(), 0.0)
     if st.get("reconciliation_required"):
         return ["a holding is at or below its stop/review level: reconcile it before any new trade"]
     return []
@@ -576,6 +883,9 @@ def compute_tbill(a, fee, p):
                     reasons=["Shariah screen: T-bill ETFs are interest-bearing; keep cash or use a certified sukuk fund"])
     reasons.extend(gate_reasons(a))
     warnings.extend(w for w in a._screen_warnings if not w.startswith("SCREEN NOT RUN: Shariah"))
+    swatch, a._sources_summary = sources_gate(a)
+    warnings.extend(a._sources_summary.get("warnings") or [])
+    reasons.extend(asset_label_check(a))
     if a.shariah_mode == "flag":
         warnings.append("Shariah flag: T-bill ETFs pay interest and are non-compliant under every registered "
                         "methodology; shown because the screen is set to flag, not exclude")
@@ -593,8 +903,10 @@ def compute_tbill(a, fee, p):
                                f"price {a.market_price:.2f}: re-plan the order")
     mwatch = None if a.market_price is not None else \
         "no --market-price from the same quote: cannot check the limit against the market"
-    base_out = dict(asset="tbill", cash_accounting=accounting, warnings=warnings,
-                    shariah=getattr(a, "_shariah_summary", None), boycott=getattr(a, "_boycott_summary", None))
+    tb_watch = [x for x in (quote_check(a), swatch) if x]
+    base_out = dict(asset="tbill", cash_accounting=accounting, warnings=warnings, also_needed=tb_watch,
+                    shariah=getattr(a, "_shariah_summary", None), boycott=getattr(a, "_boycott_summary", None),
+                    sources=a._sources_summary, market_clock=market_clock.status(CLOCK()))
     if reasons:
         return dict(verdict="NO TRADE", reasons=reasons, **base_out)
 
@@ -625,7 +937,7 @@ def compute_tbill(a, fee, p):
     q = quote_check(a)
     fxw = (f"account currency differs from {a.instrument_currency.upper()}: no exchange-rate model, so amounts "
            "and limits are not normalized; plan is research only" if a._convert else None)
-    watch = [x for x in (q, mwatch, fxw) if x]
+    watch = [x for x in (q, mwatch, fxw, swatch) if x]
     if reasons:
         verdict = "NO TRADE"
     elif watch:
@@ -683,11 +995,25 @@ def compute_price(a, fee, p):
     reasons.extend(wprobs)
     reasons.extend(gate_reasons(a))
     warnings.extend(a._screen_warnings)
+    swatch, a._sources_summary = sources_gate(a)
+    warnings.extend(a._sources_summary.get("warnings") or [])
+    reasons.extend(asset_label_check(a))
+    eblock, ewatch, ewarn, a._earnings_summary = earnings_gate(a)
+    sblock, sigwatch, swarn, a._signals_summary = signals_gate(a)
+    reasons.extend(eblock + sblock)
+    warnings.extend(ewarn + swarn)
+    gate_watch = [x for x in (swatch, ewatch, sigwatch) if x]
+    early_watch = [x for x in (quote_check(a), None if a.market_price is not None else
+                               "no --market-price from the same quote: cannot check the entry against the market")
+                   if x] + gate_watch
     base = dict(profile=a.profile, asset=a.asset, horizon=a.horizon, quote_status=a.quote_status,
                 quote=dict(time=a.quote_time or None, source=a.quote_source or None, status=a.quote_status,
                            delay_min=a.quote_delay_min, market_price=a.market_price, valid_for=QUOTE_VALIDITY),
                 stop_orders=a.stop_orders, cash_accounting=accounting, warnings=warnings, broker=a._broker_name,
+                market_clock=market_clock.status(CLOCK()),
                 shariah=getattr(a, "_shariah_summary", None), boycott=getattr(a, "_boycott_summary", None),
+                sources=a._sources_summary, earnings=a._earnings_summary, signals=a._signals_summary,
+                also_needed=early_watch,
                 assumptions=dict(fee_schedule=a._fee_source, fx_conversion_charged=a._convert, friction_bps_per_side=a.friction_bps, gap_pct=a.gap_pct))
     if reasons:
         return dict(verdict="NO TRADE", reasons=reasons, placement_status="not placeable", **base)
@@ -739,7 +1065,8 @@ def compute_price(a, fee, p):
                           open_positions=a.open_positions, max_positions=p["max_positions"])
 
     if not reasons:
-        if a.asset in COUNTED_ASSETS and a.ticker_exposure == 0 and a.open_positions >= p["max_positions"]:
+        if a.asset in COUNTED_ASSETS and getattr(a, "own_ticker_exposure", a.ticker_exposure) == 0 \
+                and a.open_positions >= p["max_positions"]:
             reasons.append("maximum number of stock/ETF positions reached")
         if open_room <= 0:
             reasons.append("portfolio open-risk limit already used")
@@ -805,8 +1132,8 @@ def compute_price(a, fee, p):
         partial = dict(feasible=True, sell_at_t1=n1, hold_for_t2=n2,
                        sell_fee_t1=round(fee(n1 * a.t1, n1, side="sell"), 2),
                        sell_fee_t2=round(fee(n2 * a.t2, n2, side="sell"), 2),
-                       realized_at_t1=round(realized_t1, 2), remaining_at_t2=round(rest_t2, 2),
-                       combined_net_profit=round(combined, 2),
+                       realized_at_t1=down2(realized_t1), remaining_at_t2=down2(rest_t2),
+                       combined_net_profit=down2(combined),
                        stop_after_t1=dict(
                            keep_at_least=a.stop,
                            optional_raise_to=remaining_be if can_raise else None,
@@ -822,11 +1149,25 @@ def compute_price(a, fee, p):
     plan_rr = combined / loss
     if plan_rr < p["min_rr"]:
         reasons.append(f"net reward:risk of the exit plan {plan_rr:.3f} is below profile minimum {p['min_rr']}")
+    gross_t1 = n * a.t1 - total_value
+    costs_t1 = sum(buy_fees) + fee(n * a.t1, n, side="sell") + fr * (total_value + n * a.t1)
+    fee_share = costs_t1 / gross_t1 if gross_t1 > 0 else float("inf")
+    fee_check = dict(round_trip_costs_at_t1=round(costs_t1, 2), gross_profit_at_t1=round(gross_t1, 2),
+                     costs_pct_of_gross_profit=round(100 * fee_share, 1),
+                     short_term_limit_pct=100 * MAX_FEE_SHARE_SHORT)
+    if fee_share > MAX_FEE_SHARE_SHORT:
+        msg = (f"fees and spread take {100 * fee_share:.1f}% of the gross profit at T1 "
+               f"(${costs_t1:,.2f} of ${gross_t1:,.2f}; limit {100 * MAX_FEE_SHARE_SHORT:g}% for short-term trades)")
+        if a.horizon == "short":
+            reasons.append(msg + ": hold longer for a bigger target, or use a bigger order if the minimum fee dominates")
+        else:
+            warnings.append(msg + ": costly for this broker")
+    dividend = dividend_view(a, total_value, warnings)
 
     q = quote_check(a)
     fxw = (f"account currency differs from {a.instrument_currency.upper()}: no exchange-rate model, so amounts "
            "and limits are not normalized; plan is research only" if a._convert else None)
-    watch = [x for x in (q, mwatch, fxw) if x]
+    watch = [x for x in (q, mwatch, fxw) if x] + gate_watch
     if reasons:
         verdict = "NO TRADE"
     elif watch:
@@ -834,11 +1175,12 @@ def compute_price(a, fee, p):
         reasons.extend(watch)
     else:
         verdict = "TRADE"
+    base["also_needed"] = watch if verdict == "NO TRADE" else []
 
     hard = a.horizon in HARD_STOP_HORIZONS
     downside = dict(
-        executable_stop_downside=round(loss, 2) if hard else 0.0,
-        long_term_review_level_downside=0.0 if hard else round(loss, 2),
+        executable_stop_downside=up2(loss) if hard else 0.0,
+        long_term_review_level_downside=0.0 if hard else up2(loss),
         note=("planned loss at a hard stop; not a guaranteed maximum" if hard else
               "scenario only: a review level is not an exit and the position can fall further"))
     proj_sectors = {s: round(port_sec.get(s, 0.0) + total_value * w, 2) for s, w in weights.items()}
@@ -853,20 +1195,21 @@ def compute_price(a, fee, p):
         shares=n, average_entry=round(total_value / n, 4), tranches=tranche_rows,
         total_order_value=res["order_value"], total_buy_fees=res["buy_fees"], reservation=res,
         cash_for_first_order=res["first_order_total"], commit_for_later_tranches=res["later_orders_total"],
-        total_cost_incl_est_friction=round(cost_basis, 2),
+        total_cost_incl_est_friction=up2(cost_basis),
         fee_adjusted_breakeven_price=solve_price(cost_basis, n, fee, fr),
         downside=downside, downside_pct_portfolio=round(100 * loss / a.portfolio, 3),
         portfolio_open_risk_after=dict(
             executable_stop=round(a.open_stop_risk + downside["executable_stop_downside"], 2),
             review_level=round(a.open_review_risk + downside["long_term_review_level_downside"], 2),
             unquantified_holdings=a.unquantified_holdings),
-        gap_scenario=dict(fill_price=round(gap_price, 2), loss=round(gap_loss, 2)),
-        net_profit_full_exit_t1=round(full_t1, 2), net_profit_full_exit_t2=round(full_t2, 2),
+        gap_scenario=dict(fill_price=round(gap_price, 2), loss=up2(gap_loss)),
+        net_profit_full_exit_t1=down2(full_t1), net_profit_full_exit_t2=down2(full_t2),
         net_rr_full_t1=round(full_t1 / loss, 3), net_rr_full_t2=round(full_t2 / loss, 3),
         partial_exit_plan=partial, net_rr_of_plan=round(plan_rr, 3),
         projected_sector_exposure=proj_sectors,
         projected_ticker_exposure=round(a.ticker_exposure + total_value, 2),
         position_pct_portfolio=round(100 * (a.ticker_exposure + total_value) / a.portfolio, 2),
+        fee_check=fee_check, dividend=dividend, sector_weights=weights,
     )
 
 
@@ -904,6 +1247,7 @@ def compute(a):
 
 def _compute(a):
     a._broker_name, a._fee_source, a._convert, a._screen_warnings = None, None, False, []
+    a._sources_summary = dict(checked=False)
     try:
         fee = setup_fees(a)
     except ValueError as e:

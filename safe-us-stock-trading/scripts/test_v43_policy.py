@@ -5,6 +5,11 @@ re-checked at trade time, and conditional WATCHLIST plans in the simple output."
 import datetime as dt, json, os, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import size_trade as _st_v46  # noqa: E402
+# v4.6: these v4.x suites isolate one gate at a time, so the mandatory screen and source gates are
+# switched off here (module switch, like CLOCK). test_v46_mandatory.py tests them switched on.
+_st_v46.SCREENS_REQUIRED = _st_v46.SOURCES_REQUIRED = _st_v46.MARKET_CLOCK_REQUIRED = False
 import render_simple as rs  # noqa: E402
 import shariah_screen as sh  # noqa: E402
 import size_trade as st  # noqa: E402
@@ -234,7 +239,8 @@ class ShariahDates(unittest.TestCase):
 class ConditionalOutput(unittest.TestCase):
     def test_watchlist_shows_conditional_plan(self):
         text = rs.render([trade(quote_time=at(60))])
-        self.assertIn("WAIT ABC: live quote is 60 minutes old", text)
+        self.assertIn("WAIT ABC\n  WHY: PRICE IS TOO OLD.", text)   # v4.6: full reason + fix
+        self.assertIn("(ENGINE: live quote is 60 minutes old", text)
         self.assertIn("IF READY LATER, PLAN IS:", text)
         self.assertIn("STOP 94.00", text)
         self.assertIn("NOT READY. GET LIVE PRICE. RUN AGAIN.", text)

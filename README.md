@@ -1,227 +1,280 @@
 # Safe US Stock Trading
 
-A Claude skill that plans US stock, ETF and gold/silver trades for any investor on any broker. It asks how much money you want to trade and what you want to buy. Then it gives exact **buy, sell and stop-loss prices**, sized to your own fees and risk level, with news-driven market analysis, optional **boycott** and **Shariah (halal/haram)** screens, and a short plain-language output.
+A Claude skill that plans US stock, ETF and gold/silver trades for any investor on any broker. You say how much money and what you want to buy; it gives an exact **limit buy price, stop-loss and two sell targets**, sized to your own fees and risk level. Every idea is run through a **boycott screen** and a **Shariah (halal) screen**, every number comes from a **fresh, named, ranked source**, and every NO BUY tells you **why** and what would fix it.
 
-> **Not financial, tax or religious advice.** The skill is research support. You decide and place every trade yourself; it never logs into a broker or places orders.
+> **Not financial, tax or religious advice.** The skill is research support. It never logs into a broker or places orders: you decide and place every trade yourself.
 
-## What it does
+**Version 4.6** · 395 tests passing · money math independently verified to the cent · [verification record](AUDIT-v4.6.md)
 
-- **Asks first:** how much money, what to buy (find ideas / your tickers / a theme / review holdings), how long to hold (short / medium / long), and how much risk (safe / balanced / aggressive).
-- **Any broker:** fee schedules live in `brokers.json` (percent, per-share, flat or commission-free, with optional separate sell fees and FX cost). There is no default fee schedule; without one the engine returns NO TRADE.
-- **Exact levels:**
-  - a limit buy price
-  - a stop-loss (or a review level for long-term ideas)
-  - two sell targets
-  - share counts, every fee, the planned loss at the stop, and a gap-down scenario
-- **Never lowers a stop** after taking partial profit.
-- **Portfolio-wide limits:** position size, sector caps (ETFs looked through), total open risk, and a cash floor. Unquantified risk blocks new trades.
-- **News from primary sources first:** Fed, BLS, BEA, Treasury, SEC EDGAR, World Gold Council. Then major outlets: BBC, Reuters, AP, Bloomberg, FT, WSJ, CNBC, The Economist, MarketWatch, Barron's, Yahoo Finance, Al Jazeera, The Guardian, Nikkei Asia. Releases are read against expectations, not by fixed rules.
-- **Gold/silver signal:** a six-factor score; unknown factors lower confidence instead of counting as zero.
-- **Optional screens, each the user's choice:**
-  - **Boycott:** UN OHCHR settlements database, BDS, AFSC Investigate, Who Profits, SEC filings. The status is computed from source-by-source evidence (finding, date, link), never typed in.
-  - **Shariah:** AAOIFI SS-21, MSCI Islamic (Index Series and M-Series), S&P Shariah, Dow Jones Islamic Market. Thresholds come from a versioned, sourced registry, with purification in USD.
-- **Simple output by default:**
+## Status: ready for paper trading
+
+The engine is verified. Whether the skill makes money is **not proven yet**: that needs about 20 closed trades in the built-in journal.
+
+1. **Paper trade first.** Record each plan and simulated fill with `journal.py` until you have about 20 closed trades.
+2. **Then go real, small.** One or two positions whose planned loss you're fine with. Reconcile the journal with your app after every fill.
+3. **Scale up only if** `journal.py report` says "positive after costs and ahead of the benchmark". If not, simply holding a screened ETF is the better choice, and the report will say so.
+
+## Quick start
+
+**1. Install**
+
+Claude apps: build the package and upload it in Claude's skill settings.
+
+```bash
+zip -r safe-us-stock-trading.skill safe-us-stock-trading -x '*/__pycache__/*'
+```
+
+Claude Code: copy the skill folder into your skills directory.
+
+```bash
+cp -r safe-us-stock-trading ~/.claude/skills/
+```
+
+Python 3.9+ standard library only; nothing to install.
+
+**2. Verify**
+
+```bash
+python3 safe-us-stock-trading/scripts/run_checks.py
+```
+
+Exit code 0 means every file is present, all three registries are valid and all tests pass. The report also shows the NYSE clock and anything due to expire within 30 days. Claude runs this at the start of each session and falls back to watchlist-only mode if it fails.
+
+**3. Ask Claude**, during NYSE hours:
+
+- "What should I buy with $5,000? Long term, balanced."
+- "Plan a medium-term trade on these tickers: …"
+- "Review my holdings and tell me what to sell."
+- "Should I move into gold now?"
+
+The first time, it asks for your platform and fees, how each screen is applied (exclude or flag only), your Shariah methodology, your tax residency, and your holdings, cash and open orders.
+
+### When to run it
+
+Plans are only executable while the NYSE regular session is open (09:30–16:00 New York, 1:00 p.m. on early-close days). Outside it you get a conditional WAIT plan to re-run later.
+
+| Your time zone | US winter time (Nov–Mar) | US summer time (Mar–Nov) |
+|---|---|---|
+| Amman / Riyadh (UTC+3) | 17:30 – 24:00 | 16:30 – 23:00 |
+| Dubai (UTC+4) | 18:30 – 01:00 | 17:30 – 24:00 |
+| London | 14:30 – 21:00 | 14:30 – 21:00 |
+
+## What you get
 
 ```
-RISK: BALANCED. HOLD: SHORT.
-MARKET: CALM. FED WAIT.
-GOLD/SILVER: WAIT.
+RISK: BALANCED. HOLD: MEDIUM.
+NYSE: OPEN. CLOSES 16:00 NEW YORK TIME.
 
 BUY ABC
-  PRICE 100.00 (LIMIT)  SHARES 10  COST $1,005.00
-  STOP 94.00  PLANNED LOSS AT STOP $70.67
-  LOSS CAN BE MORE. IF PRICE JUMPS DOWN: $117.41
-  SELL 5 AT 112.00  SELL 5 AT 119.00
-  PROFIT IF BOTH HIT $143.15 (AFTER FEES)
-  AFTER FIRST SELL: KEEP STOP 94.00. NEVER LOWER. CAN RAISE TO 101.11 (REST NO LOSS).
+  PRICE 100.00 (LIMIT)  SHARES 9  COST $904.50
+  STOP 90.00  PLANNED LOSS AT STOP $98.55
+  LOSS CAN BE MORE. IF PRICE JUMPS DOWN: $138.85
+  SELL 4 AT 120.00  SELL 5 AT 130.00
+  PROFIT IF BOTH HIT $219.85 (AFTER FEES)
+  AFTER FIRST SELL: KEEP STOP 90.00. NEVER LOWER. CAN RAISE TO 101.01 (REST NO LOSS).
+  FEE SCHEDULE: USER-PROVIDED, NOT VERIFIED. CHECK FEES IN YOUR APP.
+  FEES: $9.90 IN AND OUT = 5.5% OF PROFIT AT FIRST TARGET
+  EARNINGS: 2027-01-28 (84 DAYS).
+  TREND: OK (SHORT AVERAGES NOT ALIGNED (MA3 > MA10 > MA21 FAILS): NO SHORT-TERM BREAKOUT ENTRY)
   HALAL: OK (SS-21)
-  GIVE $0.10 TO CHARITY (FY2025)
+  CHARITY AMOUNT: UNKNOWN (DATA MISSING)
   BOYCOTT: NOT ON LISTS
-  PRICE SEEN 2026-11-05T15:30:00-05:00 (DELAYED 15M, Yahoo Finance) PRICE 100.00. GOOD ONLY FOR THIS PRICE.
+  SCREEN DATA: BOYCOTT LISTS CHECKED 2026-11-04. HALAL DATA FY2025 FILED 2026-02-20. MARKET CAP 2026-11-04.
+  PRICE SEEN 2026-11-05T15:30:00-05:00 (LIVE, Nasdaq) PRICE 100.00. GOOD ONLY FOR THIS PRICE.
+  PRICE FROM: Nasdaq 2026-11-05 15:30 + Yahoo Finance 2026-11-05 15:31 (MATCH)
+  NUMBERS FROM: SEC EDGAR 10-Q FILED 2026-10-31
+  CHART DATA FROM: Stooq READ 2026-11-05 15:20
+  ANALYSTS FROM: StockAnalysis READ 2026-11-05 14:10
   CHECK PRICE IN APP FIRST.
   CHECK APP CAN DO STOP ORDER. IF NOT: SET ALERT, SELL BY HAND.
 
-NO BUY XYZ: boycott screen: excluded
+NO BUY XYZ
+  WHY: COMPANY IS ON A BOYCOTT LIST.
+    FOUND ON: OHCHR
+    - listed by: ohchr
+  FIX: NONE. SKIP IT.
+  (ENGINE: boycott screen: excluded)
+  WHY: NOT HALAL UNDER YOUR METHOD.
+    METHOD: SS-21
+    - over the limit: interest_debt
+  FIX: NONE. SKIP IT.
+  (ENGINE: Shariah screen: excluded)
+
+SOURCES (CHECKED 2026-11-05 20:35 UTC):
+- US Bureau of Labor Statistics [OFFICIAL] 2026-10-15: CPI https://www.bls.gov/news.release/cpi.nr0.htm
+- Reuters [NEWS] 2026-11-05T12:10:00Z: Fed holds https://www.reuters.com/markets/us/fed-holds/
+- CNBC [NEWS] 2026-11-05T12:20:00Z: Fed holds https://www.cnbc.com/2026/11/05/fed-holds.html
 
 YOU DECIDE. YOU PLACE ORDER. NOT ADVICE.
 ```
+
+(Real engine output from the test fixtures; a detailed report is available on request.)
+
+## Features
+
+**Planning**
+- Asks how much money, what to buy (find ideas, your tickers, a theme, or a review of holdings), how long to hold (short / medium / long) and how much risk (safe / balanced / aggressive).
+- Exact levels: limit entry (or 2–3 tranches), stop-loss or long-term review level, two targets, shares, every fee, planned loss, gap-down loss, fee-adjusted breakeven.
+- Portfolio-wide limits: position size, sector caps (ETFs looked through), total open risk, a settled-cash floor, maximum positions. Each idea is sized against the previous ones.
+- Any broker: percent, per-share, flat or commission-free fees, separate sell fees and FX, from `brokers.json`. With no fee schedule the engine returns NO TRADE.
+- Gold/silver: a six-factor macro score, and physical metal trusts checked for Shariah structure.
+
+**Screens (always on)**
+- **Boycott:** UN OHCHR settlements database, BDS, AFSC Investigate, Who Profits and SEC filings, all checked within 30 days. The status is computed from the per-source evidence, never typed in.
+- **Shariah:** AAOIFI SS-21, MSCI Islamic (Index and M-Series), S&P Shariah, Dow Jones Islamic, from a versioned registry. Purification is calculated in USD and always rounded up.
+- You choose **exclude** (default: failing names are never planned) or **flag only** (screened and labelled; you decide). There is no "off".
+
+**Sources (always fresh, always shown)**
+- Ranked registry: tier 1 official (SEC, exchanges, Fed, BLS, BEA, Treasury, FRED, Cboe, CME), tier 2 wire and press (Reuters, AP, Bloomberg, FT, WSJ, CNBC…), tier 3 data sites (Yahoo, Stooq, StockAnalysis…).
+- Every number is a ledger entry, checked for: the right source for that kind of data, a URL on that source's own site, freshness (a price at most 15 minutes old, filings checked the same day), the latest release, two price sources within 0.5% of each other, and two outlets or one official source per news claim.
+- Company financials come only from SEC filings.
+
+**Discipline**
+- **Signals** from *151 Trading Strategies* (long-only): 12-1 momentum, earnings momentum (SUE), low volatility, multifactor rank, a 200-day trend filter and a broad-market filter. AVOID is refused, and short-term entries need a good trend.
+- **Earnings:** short-term trades are not held through earnings unless you accept the gap risk. The earnings date must come from the source ledger.
+- **Fees:** a short-term trade where fees eat more than 25% of the first target's profit is refused.
+- **US dividend tax:** net yield after withholding (30% without a tax treaty).
+- **NYSE clock:** holidays and early closes for 2026–2027.
+
+**Record-keeping**
+- **Journal:** paper and real trades kept apart; win rate, average R, totals after fees and charity, worst drop, and the result against a screened benchmark fund over the same days.
+- **Reconcile:** the journal's open positions are checked against the shares your app shows.
+- **Audit trail:** each journal entry stores a SHA-256 fingerprint of the plan, the broker, the fee source and the placement status.
+
+## How a session runs
+
+```
+run_checks.py ─► questions ─► portfolio_state.py ─► news + macro ─► candidates
+                                                                        │
+       ┌────────────────────────────────────────────────────────────────┘
+       ▼   for every candidate
+  boycott_screen.py + shariah_screen.py ─► ledger.py add (each source) ─► ledger.py check
+       ─► signals.py ─► size_trade.py ─► portfolio_state.py --plans (projected) ─► next idea
+                                                                        │
+                                                       render_simple.py ┘ ─► you place the order
+                                                                              ─► journal.py open / fill / reconcile / report
+```
+
+## Why you'll often see NO TRADE
+
+Usually the rules are working, not a bug. In 7,200 realistic simulated setups (with Bank al Etihad's 0.5% fees), the main causes were:
+
+| Cause | What happens | What helps |
+|---|---|---|
+| **Market closed** | Outside NYSE hours every plan is a WAIT | Run during the session (see the table above) |
+| **Small account** | Whole shares only, a single stock is capped at 10% of the account (5% on Safe), and the minimum order is $100. Below ~$1,000 almost nothing fits; on Balanced the account must be at least 10× the share price | Use a screened ETF (35% cap), or a larger account |
+| **Fees on short trades** | About 1% per round trip, and at least $2 profit after fees per $1 risked is required. With a 4% stop, a short trade needs about an 11% target | Prefer medium or long holds (they pass 60–70% of the time vs ~40% for short) |
+| **Screens** | Strict boycott and Shariah screens remove many large US companies before sizing | Flag-only mode widens the pool, but you judge each flagged name |
+| **Missing or stale data** | No fresh source, earnings date or trend check means WAIT, with what's missing listed | Refresh the sources and re-run |
+
+NO TRADE is a valid outcome. With costs like these, trading less often usually keeps more money.
+
+## Configuration
+
+**Your broker.** Copy a template in `scripts/brokers.json` (`template-percent`, `template-per-share`, `template-flat`, `template-zero`), give it an id, fill in the schedule, remove `"template": true`, then run `run_checks.py`.
+- Rates are fractions: `0.005` means 0.5%.
+- Optional: a separate `sell` schedule and `fx_pct`. FX is charged only when currency is actually converted.
+- Spread and slippage are separate (`--friction-bps`, default 5 per side).
+- Keep personal fee schedules in `brokers.local.json` (git-ignored) and pass `--brokers`.
+- Profiles are marked user-provided until `verified_source` is set, and every plan says so.
+
+**Registries.** Maintainers edit these; the skill never edits them during a session.
+
+| File | What | Re-check | Current |
+|---|---|---|---|
+| `methodologies.json` | Shariah thresholds, versions, purification method | every 120 days | verified 2026-11-05, due 2027-03-05 |
+| `sources.json` | Accepted sources, tiers, freshness rules | every 180 days | verified 2026-11-09, due 2027-05-08 |
+| `market_clock.py` | NYSE holidays and early closes | yearly | 2026–2027 from nyse.com |
+
+`run_checks.py` warns 30 days before any of these goes stale. After they expire, the affected checks refuse to pass.
+
+Shariah registry versions: AAOIFI SS-21; MSCI Islamic Index Series, May 2025; MSCI Islamic M-Series, May 2025; S&P Shariah, October 2026; Dow Jones Islamic Market, September 2026.
+
+**Optional: faster data.** Claude's sandbox blocks most finance sites by default. Allowing `sec.gov`, `data.sec.gov`, `finance.yahoo.com` and `stooq.com` under Claude Settings > Capabilities cuts the manual lookups.
+
+## Safety design
+
+- **Every number comes from the scripts**, never from the model. An engine error means NO TRADE.
+- **Nothing is executable unless:**
+  - both screens have passed, from result files re-checked at trade time
+  - every source is fresh
+  - the NYSE is open and the quote is from the current session (at most 15 minutes old)
+  - the entry is within 1% of the market price and every price is in whole cents
+  - every limit holds: position, sector, open risk, cash floor and maximum positions
+- **A plan stays provisional** until you confirm the exact order in your app (ticker, limit, price, shares) and how the stop will be handled.
+- **Files are re-checked, not trusted:**
+  - screen expiry is recomputed from each result's own date
+  - boycott evidence must match the asset type and ISIN
+  - signals are recomputed from the price rows recorded in the file
+  - an edited plan verdict is refused everywhere downstream
+
+  Forging a file's inputs as well isn't detected: this is a consistency check, not tamper-proofing.
+- **Conservative money math:** losses and costs are rounded up, profits rounded down, breakevens rounded up and charity rounded up. Unfilled buy orders count their unpaid fee as risk. A stop is never lowered after taking partial profit.
+- **Portfolio state is validated:** known asset types and order statuses only, whole-share quantities, no overselling, no duplicate holdings or order ids. A holding already under its stop blocks new trades until you reconcile it.
+- **Personal files stay private:** portfolio state, plans, screens, source ledgers and the journal are git-ignored.
+
+## Verification
+
+v4.6 went through four rounds: an independent code review, an end-to-end run through the real tools, an adversarial audit that tried to break every rule, and a treasury audit that rebuilt the money math independently. 59 findings were fixed, each with a regression test. The independent recomputation matched every dollar figure to the cent across 760 random plans, 50 T-bill plans, a two-plan portfolio chain and 30 journal trades. The full record is in [AUDIT-v4.6.md](AUDIT-v4.6.md).
+
+| Test file | Tests |
+|---|---|
+| `test_size_trade.py` (unit) | 170 |
+| `test_audit_regressions.py` (v4.1 audit) | 16 |
+| `test_integration.py` (command-line chain) | 21 |
+| `test_v42_followup.py` (v4.2 audit) | 6 |
+| `test_v43_policy.py` | 31 |
+| `test_v43_independent.py` (v4.3 audit) | 5 |
+| `test_v44_hardening.py` | 19 |
+| `test_v44_independent_followup.py` (v4.4 audit) | 6 |
+| `test_v45_hardening.py` | 17 |
+| `test_v46_mandatory.py` (v4.6: all gates on, every review finding) | 104 |
+| **Total, all passing** | **395** |
+
+Test notes:
+- Fixed-date fixtures pin the engine's clock to 2026-11-05 20:35 UTC inside the test process; the command line can't set the clock.
+- The pre-v4.6 suites switch off the three v4.6 gates (screens, sources, market hours) with a short block at the top of each file, so each keeps testing the gate it was written for. `test_v46_mandatory.py` runs with every gate on.
+- Older audit files keep their original wording. `test_v42_followup.py` and `test_v43_independent.py` still mention the old name `us-portfolio-cfo`. Part of `test_v44_independent_followup.py` was rebuilt from its audit report.
+
+**Still outside what code can settle:**
+- broker fees and fee rounding (check one real fill against its plan)
+- US dividend withholding for your country
+- specialist review of the Shariah methodology summaries and certificates
+- whether the strategy is profitable (the journal decides)
 
 ## Repository layout
 
 ```
 .
 ├── README.md
-├── .gitignore
-├── .github/workflows/checks.yml   # runs run_checks.py on every push / PR
-└── safe-us-stock-trading/              # the skill itself
+├── AUDIT-v4.6.md                  # verification and treasury audit record
+├── .gitignore                     # keeps personal state, plans, ledgers and journals out of git
+└── safe-us-stock-trading/         # the skill itself
     ├── SKILL.md                   # instructions Claude follows
     └── scripts/
-        ├── run_checks.py          # one command: files + registries + all tests
-        ├── size_trade.py          # sizing, fees, gates, exits (price trades and T-bill funds)
-        ├── portfolio_state.py     # actual vs projected portfolio, orders, risk buckets
-        ├── shariah_screen.py      # Shariah screen and result files with provenance
-        ├── boycott_screen.py      # boycott screen: status computed from per-source evidence
+        ├── run_checks.py          # files, registries, tests, NYSE clock, expiry warnings
+        ├── size_trade.py          # sizing, fees and every gate (price trades and T-bill funds)
+        ├── portfolio_state.py     # actual vs projected portfolio, orders, risk
+        ├── boycott_screen.py      # boycott status computed from per-source evidence
+        ├── shariah_screen.py      # Shariah screen, purification, result provenance
+        ├── sources_check.py       # source-ledger freshness and accuracy check
+        ├── ledger.py              # add / list / check / drop source entries
+        ├── signals.py             # long-only signals (151 Trading Strategies)
+        ├── market_clock.py        # NYSE session, holidays, early closes
+        ├── journal.py             # trade journal, performance report, reconcile
+        ├── render_simple.py       # plain-language output; full NO BUY reasons
         ├── fees.py                # broker cost models
-        ├── render_simple.py       # plain-language output, numbers copied from the engine
-        ├── methodologies.json     # Shariah rules registry (versioned, sourced, dated)
         ├── brokers.json           # broker fee profiles and templates
-        ├── test_size_trade.py     # unit tests
-        ├── test_audit_regressions.py  # 16 independent audit regression tests (v4.1 audit)
-        ├── test_v42_followup.py   # 6 independent follow-up audit tests (v4.2 audit)
-        ├── test_v43_policy.py     # clock, market price, stop capability, FX, certificate/market-cap dates
-        ├── test_v43_independent.py  # 5 independent audit tests (v4.3 audit)
-        ├── test_v44_hardening.py  # ETF weights, buy/sell orders, state weights, bounded sizing (randomized)
-        ├── test_v44_independent_followup.py  # 6 independent audit tests (v4.4 audit)
-        ├── test_v45_hardening.py  # worst-case Unclassified (randomized), cent grid, T-bill market, order states
-        └── test_integration.py    # full command-line chain across every asset type
+        ├── methodologies.json     # Shariah rules registry
+        ├── sources.json           # ranked source registry and freshness rules
+        └── test_*.py              # 395 tests
 ```
 
-Only Python 3.9+ standard library is needed; there are no dependencies to install.
+## Credits
 
-## Install
-
-**Claude apps (upload):** build the package and upload it in Claude's skill settings.
-
-```bash
-zip -r safe-us-stock-trading.skill safe-us-stock-trading -x '*/__pycache__/*'
-```
-
-**Claude Code:** copy or symlink the skill folder into your skills directory.
-
-```bash
-cp -r safe-us-stock-trading ~/.claude/skills/
-```
-
-## Verify
-
-```bash
-python3 safe-us-stock-trading/scripts/run_checks.py
-```
-
-This prints a JSON report and exits with code 0 only if every file is present, both registries pass schema validation, and every test passes. The skill runs this itself at the start of each session and falls back to watchlist-only mode if it fails. The same check runs in GitHub Actions on every push.
-
-## Use
-
-Ask Claude something like:
-
-- "What stocks should I buy with $5,000? Long term, balanced."
-- "Plan a short-term trade on these tickers: …"
-- "Review my holdings and tell me what to sell."
-- "Should I move into gold now?"
-
-The first time, it asks for your platform and fee schedule, which screens you want, your tax residency, and your current holdings, cash and open orders.
-
-## Configuration
-
-### Add your broker
-
-Copy a template in `safe-us-stock-trading/scripts/brokers.json` (`template-percent`, `template-per-share`, `template-flat`, `template-zero`), give it a new id, fill in your schedule, remove `"template": true`, then run `run_checks.py`.
-
-- **Rates are fractions:** `0.005` means 0.5%. The engine rejects 0.1 or more as a likely mistake.
-- **Optional extras:** a separate `sell` schedule, and `fx_pct` for currency conversion. FX is charged only when the instrument's currency differs from the account currency (`--account-currency`, else the profile's `currency`), so a USD account buying US stocks pays no phantom FX. There's no exchange-rate model yet, so a cross-currency account gets research-only plans.
-- **Spread and slippage are applied separately** (`--friction-bps`, default 5 per side).
-
-To keep a personal fee schedule out of public commits, put it in `brokers.local.json` (git-ignored, same format) and pass it with `--brokers path/to/brokers.local.json`.
-
-### Shariah methodology registry
-
-`methodologies.json` is the only source of Shariah thresholds. Each entry records:
-- provider and document version
-- effective date and official source URL
-- the date it was verified
-- exact ratios, denominators and comparators
-- entry, threshold and exit buffers, and any multi-period rule
-- the purification method
-- retrieval evidence
-
-The screen returns UNVERIFIED when:
-- the provider publishes a version the registry doesn't list
-- an entry is older than `max_age_days`
-- an entry is disabled
-
-To update it:
-1. Read the provider's new methodology document.
-2. Edit the entry, or add the new version and mark the old one `historical_only`.
-3. Record what you compared in `evidence`. An alternate edition goes in `equivalent_versions` only after every rule has been compared; titles alone are not enough.
-4. Run `run_checks.py`.
-
-The skill never edits this file during a session.
-
-Registry as verified on 2026-11-05:
-
-| Methodology | Version |
-|---|---|
-| AAOIFI | SS-21 |
-| MSCI Islamic Index Series | May 2025 |
-| MSCI Islamic M-Series | May 2025 |
-| S&P Shariah | October 2026 (effective 2026-09-21) |
-| Dow Jones Islamic Market | September 2026 (effective 2026-09-18) |
-
-## Safety design
-
-- Every number in a trade plan comes from the scripts, never estimated by the model. An engine error means NO TRADE.
-- **Inputs are validated:** numbers must be finite and positive or non-negative; sector weights must lie between 0 and 1 and total 1; dates can't be in the future or stale.
-- **Caps count everything in a ticker:** each stock or ETF cap includes current holdings, open orders and planned buys in that ticker, plus related share classes.
-- **Stops are checked:** a stop further below any entry than the profile and horizon allow is rejected, and a stop is never lowered after partial profit.
-- **Breakevens include every exit cost** and are rounded up to the cent.
-- A trade stays **provisional** until you confirm the exact order (ticker, type, limit price, shares) in your own app.
-- Screen modes are required arguments, never silently defaulted.
-- Boycott and Shariah verdicts must come from result files that match the ticker, asset type and ISIN, haven't expired, and give the same verdict when recomputed from their recorded evidence or inputs. This is a consistency check, not tamper-proofing.
-- **Freshness is checked against the system clock**, not a date you pass. `--as-of` must be today, a live quote at most 15 minutes old, a delayed quote at most its stated delay (20 minutes max) plus 15 minutes. Anything else is a watchlist entry with a conditional plan. `--now` replays a past moment for research and is never executable.
-- **Levels are tied to the market:** `--market-price` from the same quote is required; an entry more than 1% above it, or a market price at or below the stop, is NO TRADE.
-- **Only a matching limit order confirms a plan**, and a short/medium plan is marked ready only when the stop can be handled (`--stop-orders yes`, or a manual stop the user accepts).
-- **Flag-mode screens without a result file are labelled SCREEN NOT RUN**, never "screened".
-- **Portfolio state is validated:** every working order states buy or sell and a known status (open/partial/filled/cancelled) with consistent whole-share quantities; sell orders reserve no cash and add no exposure, and can't exceed the shares held; sector weights must be valid. Bad state is an error, never silently counted.
-- **Unclassified sector money is worst case:** holdings with no sector data, and any "Unclassified" weight, count against every sector a new buy touches, so missing data can't hide a sector-cap breach.
-- **Cent grid:** every order and level price must be a whole number of cents; off-grid prices are NO TRADE, never rounded.
-- **T-bill funds** need a market price from the same quote too; a limit more than 1% above it is NO TRADE.
-- **ETF boycott weights** must be 0–100%, 100% screened, with excluded + flagged no more than screened.
-- **Sizing is bounded:** prices under $1 are rejected, and the share quantity is found by binary search (checked against the old linear scan on 400 random cases), so a huge account or a low price can't stall it.
-- **Shariah dates are checked twice:** a market-cap date (required for market-cap methodologies, at most 31 days old) and a certificate date (at most 400 days old, with an https link) are re-checked when the trade is sized.
-- Portfolio state, plans and screening files are git-ignored because they can contain personal holdings.
-
-## Audit status
-
-v4.5 fixes all six findings from the independent v4.4 code audit (2026-11-05):
-
-| Finding | Fix |
-|---|---|
-| H1: a holding with no sector data could hide a sector-cap breach | Counted as Unclassified, which the engine places worst case (in whichever sector the buy touches); also applies to an ETF's own Unclassified weight |
-| H2: T-bill limit price wasn't checked against the market | `--market-price` required (missing → WATCHLIST); limit more than 1% above it → NO TRADE |
-| M1: fractional-cent prices were accepted | Every entry, tranche, stop, target and T-bill limit must be on the cent grid; never rounded |
-| M2: overfilled orders silently disappeared | Whole-number `shares` > 0 and 0 ≤ `filled_shares` ≤ `shares`, consistent with status; otherwise an error |
-| M3: unknown order status treated as open | Status must be open, partial, filled or cancelled; otherwise an error |
-| L1: T-bill confirmation mentioned a stop | T-bill wording says no stop applies and points to rate risk |
-
-Earlier rounds: v4.4 fixed the v4.3 audit (ETF boycott weights, sell orders, state sector weights, bounded sizing); v4.3 the v4.2 follow-up (system-clock quotes, market price, stop capability, flag mode, FX); v4.2 the v4.1 audit.
-
-| Test file | Tests |
-|---|---|
-| `test_size_trade.py` (unit) | 170 |
-| `test_audit_regressions.py` (v4.1 audit) | 16 |
-| `test_integration.py` | 21 |
-| `test_v42_followup.py` (v4.2 audit, unchanged) | 6 |
-| `test_v43_policy.py` | 31 |
-| `test_v43_independent.py` (v4.3 audit, unchanged) | 5 |
-| `test_v44_hardening.py` | 19 |
-| `test_v44_independent_followup.py` (v4.4 audit) | 6 |
-| `test_v45_hardening.py` | 17 |
-| **Total, all passing** | **291** |
-
-Test setup notes:
-- Fixed-date fixtures run with the engine's clock pinned to 2026-11-05 20:35 UTC, inside the test process only. The command line can't set the clock.
-- The reconstructed header of `test_audit_regressions.py` passes `--market-price` and `--market-cap-date`, both now required.
-- The skill was renamed from `us-portfolio-cfo` (US Portfolio CFO) to `safe-us-stock-trading`. The auditor-supplied `test_v42_followup.py` and `test_v43_independent.py` still mention the old name in their opening comment; they're kept exactly as supplied.
-- The first part of `test_v44_independent_followup.py` didn't arrive. Its header, the sector-cap test and the start of the first T-bill test were rebuilt from the audit report; the rest is the auditor's text, unchanged. It uses the real clock, not a pinned one.
-
-Still open, and outside what code can settle:
-- **Specialist review:** registry checks validate structure, not whether the Shariah methodology summaries or an issuer's certificate are correct.
-- **Evidence is a research record:** a boycott evidence file records what was found and where; it doesn't prove the source was read correctly.
-- **External confirmation:** methodology versions, data freshness, broker fees, tax treatment and order types.
-- **Supervised paper trading** across several sessions: stale and after-hours quotes, partial fills, cancellations, corporate actions.
-
-Until you've done the paper trading, treat plans as research and keep confirming every order in your app.
+- `market_clock.py` is ported from [trader-skill](https://github.com/Jakeschincariol/trader-skill) (`trader-alerts/alerts.py`), Copyright (c) Jake Schincariol, MIT License. The source rules in SKILL.md section 8 (filed numbers first, headlines are leads, filings beat headlines) follow the same practice.
+- `signals.py` implements formulas from Kakushadze & Serur, *151 Trading Strategies* (2018), SSRN 3247865.
 
 ## Disclaimer
 
-For research and education only. Not investment, tax or religious advice. Fee schedules are user-provided unless marked verified. Methodology summaries may lag provider updates; the registry and fail-safe checks reduce but don't eliminate that risk. Markets can gap through stops, and losses can exceed the planned amount.
+For research and education only. Not investment, tax or religious advice. Fee schedules are user-provided unless marked verified. Methodology summaries may lag provider updates; the registry and fail-safe checks reduce that risk but don't remove it. Markets can gap through stops, and losses can exceed the planned amount. Past or simulated results don't guarantee future ones.

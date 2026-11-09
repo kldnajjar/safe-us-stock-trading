@@ -132,18 +132,27 @@ def validate_result(res, ticker, asset, isin, as_of):
         return "UNVERIFIED", [f"boycott result ISIN {res['isin']} does not match {isin}"]
     try:
         today = dt.date.fromisoformat(as_of)
-        if today > dt.date.fromisoformat(res["expires_on"]):
-            return "UNVERIFIED", [f"boycott result expired on {res['expires_on']}; re-screen"]
-        if today < dt.date.fromisoformat(res["as_of"]):
+        made = dt.date.fromisoformat(res["as_of"])
+        expires = made + dt.timedelta(days=RESULT_VALID_DAYS)    # recomputed: the stored expires_on is not trusted
+        if today > expires:
+            return "UNVERIFIED", [f"boycott result expired on {expires.isoformat()}; re-screen"]
+        if today < made:
             return "UNVERIFIED", ["boycott result is dated in the future"]
     except (KeyError, TypeError, ValueError):
         return "UNVERIFIED", ["boycott result or --as-of has no valid date"]
     ev = res.get("evidence") or {}
     if str(ev.get("ticker", "")).upper() != res["ticker"]:
         return "UNVERIFIED", ["boycott result ticker does not match its evidence"]
+    if ev.get("asset") != res.get("asset"):
+        return "UNVERIFIED", [f"boycott evidence was gathered for asset type '{ev.get('asset')}', not '{res.get('asset')}'"]
+    if (ev.get("isin") or "") != (res.get("isin") or ""):
+        return "UNVERIFIED", ["boycott result ISIN does not match its evidence"]
     status, _ = compute_status(ev, res["as_of"], res.get("strictness", "strict"))
     if status != res.get("status"):
         return "UNVERIFIED", ["boycott status does not match a recomputation from its evidence"]
+    now_status, now_why = compute_status(ev, today.isoformat(), res.get("strictness", "strict"))
+    if now_status == "UNVERIFIED" and status != "UNVERIFIED":
+        return "UNVERIFIED", [f"boycott evidence is no longer current: {'; '.join(now_why[:2])}"]
     return status, []
 
 
