@@ -10,6 +10,7 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 - No-buy pages: the answer carries its one-line why; the steps say when the US market next opens in the user's time; **ALSO FIX IN YOUR APP** lists a holding with no stop or past its stop; the page is headed "What I looked at"; money, holdings and full numbers are folded under "More, if you want it"; the colour key moved below the checks.
 - **"It passes at X or lower".** When the only blocker is profit too small for the risk, the engine finds the highest entry price (same stop and targets) at which the plan passes every gate, and the output says it: "IT PASSES AT 340.87 OR LOWER ... SET A PRICE ALERT". No price is shown when anything else is wrong.
 - Printing: folded sections are opened on paper / PDF.
+- **A "no buy" has to be earned.** The run now prices 3 to 4 candidates of different kinds (always at least one single company), shows screen-failing names as YOUR CALL options in flag mode instead of skipping them, asks before running on a closed market, and ends with the plain reason for a no-buy.
 - 450 tests pass.
 
 ### v5.0: simple, colour-coded dashboard; one-call data intake; one-card run

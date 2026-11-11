@@ -32,12 +32,19 @@ Follow these eight steps in order. The numbered sections below are the reference
 | 2 | Ask | one question at a time; platform and tax residency every session | 0b |
 | 3 | State | `portfolio_state.py` on what the app shows | 6a |
 | 4 | Market | 4–6 searches run together: Fed, latest big release, this week's move, the asset's news. Ledger each one. | 8, 9 |
-| 5 | Pick **at most 2 candidates** | market DOWN (signals) means gold or cash first; UP means a broad screened ETF or a large cap. Drop anything that doubles what the user already holds. Dropped names go in `--skipped`. | 11 |
+| 5 | Pick **3 to 4 candidates of different kinds** | Always include: one gold or cash-like idea, one broad screened fund, and **one or two large single companies** likely to pass both screens (single companies are where clean names are; broad funds usually hold listed names). Market DOWN (signals) puts gold first; UP puts the fund and companies first. `--skipped` is only for a name dropped for trend or because it doubles what the user holds, never for failing a screen. | 11 |
 | 6 | Data, **one browser call** | run `scripts/browser_fetch.js` on a nasdaq.com tab with the candidates + the market fund, save the result as `DATA.json`, then `ingest.py --data DATA.json --ledger LEDGER.json --market FUND`. It writes the price files, ledgers the quote and history, and runs the signals. Add the second quote source by hand (0.5% cross-check). | 4, 8a, 8b |
-| 7 | Screen **both** candidates fully, then size | boycott (AFSC fund search first for ETFs, then Who Profits all pages in one in-page fetch, BDS, OHCHR, SEC) and Shariah; then `size_trade.py --budget AMOUNT`. Never show a ticker whose screens did not run. | 7, 7b, 6b |
+| 7 | Screen **every** candidate fully, then size **every** one | boycott (AFSC fund search first for ETFs, then Who Profits all pages in one in-page fetch, BDS, OHCHR, SEC) and Shariah; then `size_trade.py --budget AMOUNT`. In **flag** mode a name that fails a screen is still sized and shown as a YOUR CALL option with its proof; it is never moved to SKIPPED. Never show a ticker whose screens did not run. | 7, 7b, 6b |
 | 8 | Show | `render_simple.py` then `render_dashboard.py`, once each. Publish the dashboard. | 12 |
 
-Accuracy comes from the engine, not from more searching: quote under 15 minutes old from two sources, every number in the ledger, screens with evidence files. Speed comes from doing less: two candidates, one data call, no re-runs. Re-read the quote right before step 7 if more than 10 minutes passed.
+**A "no buy" answer has to be earned (v5.1).** Before the output says NO BUY TODAY, check all of these, and say in the reply which ones applied:
+- At least three candidates went through the engine, and at least one was a single company. One idea is not a search.
+- The market was open. If it is closed, say so in the first line **before** doing the work and ask one question: "The US market opens at TIME (your time). Run now for a watch list only, or come back then?" A run before the open can never produce a buy.
+- In flag mode, every name that failed a screen is on the page as a YOUR CALL option with its numbers.
+- Every idea blocked only by "profit too small for the risk" shows its "it passes at X or lower" price (from the engine).
+- The reply ends with the plain reason there is no buy: for example "market closed", "the only clean idea is too expensive today; alert at X", or "everything that fits your money rules failed a check".
+
+Accuracy comes from the engine, not from more searching: quote under 15 minutes old from two sources, every number in the ledger, screens with evidence files. Speed comes from one data call and no re-runs, not from looking at fewer ideas. Re-read the quote right before step 7 if more than 10 minutes passed.
 
 ## 0. Start of session
 
