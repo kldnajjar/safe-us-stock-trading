@@ -385,10 +385,13 @@ class MoneyPlan(unittest.TestCase):
 
 class MarketRead(unittest.TestCase):
     """v5.2: the analyst's market read on the page: sourced facts, both sides, what would change it."""
+    import datetime as _d
+    D = (_d.date.today() - _d.timedelta(days=1)).isoformat()
+    OLD = (_d.date.today() - _d.timedelta(days=30)).isoformat()
     AN = dict(mood="risk-off", one_line="Inflation came in hot.",
               facts=[dict(what="Prices rose 0.4% in October", means="The Fed may raise rates", source="BLS",
-                          url="https://www.bls.gov/cpi", date="2026-11-10"),
-                     dict(what="A rumour with no source", means="?", url="", date="2026-11-10"),
+                          url="https://www.bls.gov/cpi", date=D),
+                     dict(what="A rumour with no source", means="?", url="", date=D),
                      dict(what="No date", url="https://example.com/x")],
               favours=[dict(kind="cash", why="no rush to buy")], against=[dict(kind="growth companies", why="higher rates")],
               scenarios=[dict(name="Inflation cools", then="pressure eases", watch="CPI DEC 10")],
@@ -402,7 +405,7 @@ class MarketRead(unittest.TestCase):
         self.assertIn("RISK-OFF", page)
         self.assertIn('href="https://www.bls.gov/cpi"', page)
         self.assertNotIn("A rumour with no source", page)
-        self.assertIn("2 point(s) left out: no source I could show.", page)
+        self.assertIn("2 point(s) left out: no source I could show, or older than 7 days.", page)
         self.assertIn("I would change this view if:", page)
         self.assertIn("not a promise and not licensed advice", page)
 
@@ -414,6 +417,19 @@ class MarketRead(unittest.TestCase):
     def test_untrusted_text_is_escaped(self):
         an = dict(self.AN, one_line="<script>x</script>")
         self.assertNotIn("<script>x", rd.render([t49.TRADE], analysis=an))
+
+    def test_stale_or_unreadable_dates_are_dropped(self):
+        f = self.AN["facts"][0]
+        for bad in (self.OLD, "10 Nov 2026", "2999-01-01", ""):
+            an, dropped = rd.clean_analysis(dict(self.AN, facts=[dict(f, date=bad)]))
+            self.assertEqual((an, dropped), (None, 1), bad)
+        self.assertEqual(rd.fact_age_days("2026-11-10", self._d.date(2026, 11, 17)), 7)
+        an, _ = rd.clean_analysis(dict(self.AN, facts=[dict(f, date="2026-11-10")]), self._d.date(2026, 11, 18))
+        self.assertIsNone(an)
+
+    def test_plan_only_page_has_no_empty_risk_line(self):
+        self.assertNotIn("Risk N/A", rd.render([], analysis=self.AN))
+        self.assertIn("Risk ", rd.render([t49.TRADE]))
 
 
 class Marks(unittest.TestCase):

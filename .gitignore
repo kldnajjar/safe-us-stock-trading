@@ -28,6 +28,8 @@ SOURCES_CHECK*.json
 SIG_*.json
 BOYCOTT_*.json
 EVIDENCE*.json
+ANALYSIS*.json
+MONEY_PLAN*.json
 
 # Local broker profiles with personal fee schedules (keep brokers.json for shared templates)
 brokers.local.json

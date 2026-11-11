@@ -382,7 +382,7 @@ python3 "$SKILL_DIR/scripts/size_trade.py" --asset tbill --ticker TICKER --profi
 
 - **Be the analyst (v5.2).** The user comes for a market read, not only for a sized order. Every session, after the news scan, write `ANALYSIS.json` and pass `--analysis ANALYSIS.json` to `render_dashboard.py`; give the same read in the chat in a few plain lines. It has:
   - `mood`: `RISK-ON`, `NEUTRAL` or `RISK-OFF`, and `one_line` saying why.
-  - `facts`: 3 to 6 things that happened, each `{what, means, source, url, date}`. Every fact must be in the source ledger; a fact with no https link or date is dropped by the renderer and counted on the page. Read actual vs expected (section 8), not headlines.
+  - `facts`: 3 to 6 things that happened, each `{what, means, source, url, date}`. Every fact must be in the source ledger; `date` is `YYYY-MM-DD`. The renderer drops, and counts on the page, any fact with no https link, an unreadable date, or a date more than 7 days old. Read actual vs expected (section 8), not headlines.
   - `favours` and `against`: the **kinds** of thing these conditions help or hurt, each with the reason (`{kind, why}`). Kinds only (gold, cash, broad funds, large steady companies, fast-growing companies), never a promise about a named stock.
   - `scenarios`: 2 to 3 "if this happens, then likely that, watch this date".
   - `change_my_mind`: what would make you change the read.

@@ -19,7 +19,8 @@ arithmetic here is the width of a progress bar. Nothing is recomputed or rounded
 Publish the file as an artifact (or send it). It is a snapshot: levels are valid only for the
 quoted price shown on each card.
 """
-import argparse, html, json, sys
+import argparse
+import datetime as _dt, html, json, sys
 import os as _os
 sys_path_dir = _os.path.dirname(_os.path.abspath(__file__))
 import sys as _sys
@@ -290,18 +291,32 @@ def sentence(text):
 
 MOODS = {"RISK-ON": ("ok", "PEOPLE ARE BUYING. PRICES TEND TO RISE."),
          "NEUTRAL": ("info", "MIXED. NO CLEAR DIRECTION."),
-         "RISK-OFF": ("bad", "PEOPLE ARE SCARED. PRICES TEND TO FALL.")}
+         "RISK-OFF": ("bad", "PEOPLE ARE CAREFUL. PRICES FALL MORE EASILY.")}
 
 
-def clean_analysis(an):
-    """Keep only what can be stood behind. A fact needs words, an https source link and a date; a fact
-    without them is dropped and counted. Returns (analysis, dropped)."""
+FACT_MAX_AGE_DAYS = 7
+
+
+def fact_age_days(text, today=None):
+    """Days since a fact's YYYY-MM-DD date, or None when the date cannot be read or is in the future."""
+    try:
+        d = _dt.date.fromisoformat(str(text or "").strip()[:10])
+    except ValueError:
+        return None
+    age = ((today or _dt.date.today()) - d).days
+    return age if age >= 0 else None
+
+
+def clean_analysis(an, today=None):
+    """Keep only what can be stood behind. A fact needs words, an https source link and a YYYY-MM-DD date
+    no more than FACT_MAX_AGE_DAYS old; anything else is dropped and counted. Returns (analysis, dropped)."""
     if not isinstance(an, dict):
         return None, 0
     facts, dropped = [], 0
     for f in an.get("facts") or []:
+        age = fact_age_days(f.get("date"), today) if isinstance(f, dict) else None
         ok = (isinstance(f, dict) and str(f.get("what") or "").strip() and str(f.get("url") or "").startswith("https://")
-              and str(f.get("date") or "").strip())
+              and age is not None and age <= FACT_MAX_AGE_DAYS)
         if ok:
             facts.append(f)
         else:
@@ -324,11 +339,11 @@ def analysis_section(an):
     rows = "".join(
         f'<tr><td><b>{e(f.get("what"))}</b></td><td>{e(f.get("means") or "")}</td>'
         f'<td class="ref"><a href="{e(f["url"])}" rel="noopener noreferrer">{e(f.get("source") or "source")}</a> '
-        f'{e(f.get("date"))}</td></tr>' for f in an["facts"])
+        f'{e(_dt.date.fromisoformat(str(f["date"])[:10]).strftime("%d %b %Y"))}</td></tr>' for f in an["facts"])
     out += ('<div class="tbl" style="margin-top:10px"><table class="chk"><thead><tr><th>What happened</th>'
             f'<th>What it means</th><th>Proof</th></tr></thead><tbody>{rows}</tbody></table></div>')
     if dropped:
-        out += f'<div class="sub">{dropped} point(s) left out: no source I could show.</div>'
+        out += f'<div class="sub">{dropped} point(s) left out: no source I could show, or older than {FACT_MAX_AGE_DAYS} days.</div>'
 
     def lst(title, items, cls_):
         items = [x for x in items or [] if isinstance(x, dict) and x.get("kind")]
@@ -657,10 +672,11 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     plans = sorted(plans, key=lambda x: (kinds[_rs.plan_kind(x)], not _rs.is_clean(x)))
     first = next((p for p in plans if p.get("profile")), {})
     asof = next((get(p, "quote", "time") for p in plans if get(p, "quote", "time")), "")
-    p = [f'<h1>{e(title)}</h1><div class="sub">'
-         + (f"Prices from {e(_rs.when(asof))} · " if asof else "")
-         + f'Risk {e(str(first.get("profile") or "n/a").upper())} · '
-         f'hold {e(str(first.get("horizon") or "n/a").upper())} · app {e(first.get("broker") or "n/a")}</div>']
+    p = [f'<h1>{e(title)}</h1>']
+    if plans:                               # with nothing priced there is no risk level, hold time or app to show
+        p.append('<div class="sub">' + (f"Prices from {e(_rs.when(asof))} · " if asof else "")
+                 + f'Risk {e(str(first.get("profile") or "n/a").upper())} · '
+                 f'hold {e(str(first.get("horizon") or "n/a").upper())} · app {e(first.get("broker") or "n/a")}</div>')
     if (state or {}).get("reconciliation_required"):
         p.append('<div class="banner bad">x A thing you hold is past its stop. No new trades until '
                  'you fix it in the app.</div>')
