@@ -13,7 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REQUIRED = ["size_trade.py", "portfolio_state.py", "shariah_screen.py", "boycott_screen.py", "fees.py",
             "render_simple.py", "render_dashboard.py", "methodologies.json", "brokers.json",
             "sources_check.py", "sources.json", "signals.py", "market_clock.py", "ledger.py", "journal.py",
-            "test_v48_mandatory.py", "test_v49_actions.py", "test_v50_ingest.py", "ingest.py", "browser_fetch.js",
+            "test_v48_mandatory.py", "test_v49_actions.py", "test_v50_ingest.py", "ingest.py", "browser_fetch.js", "money_plan.py",
             "test_size_trade.py", "test_audit_regressions.py", "test_integration.py",
             "test_v42_followup.py", "test_v43_policy.py",
             "test_v43_independent.py", "test_v44_hardening.py",

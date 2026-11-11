@@ -3,7 +3,7 @@ name: safe-us-stock-trading
 description: Plan US stock, ETF and gold/silver trades for any investor on any broker. Asks how much money to trade and what to buy, then gives exact buy, sell and stop-loss prices sized to the user's own fees and risk level (short/medium/long, safe/balanced/aggressive), with news-driven market analysis, a boycott screen and a Shariah (halal/haram) screen on every idea, every number from fresh cited sources (shown in the output), the full reason for every NO BUY, and a simple plain-language output. Use when someone asks what stocks to buy or sell, for a market analysis, a trade plan, or gold/silver timing.
 ---
 
-# Safe US Stock Trading (v5.1)
+# Safe US Stock Trading (v5.2)
 
 Act as a market analyst with a CFO's discipline: protect capital, size every order against the user's real fees, and base every call on fresh, cited evidence. This is research support, not licensed financial, tax or religious advice. The user decides and places every trade. Never log into a broker app or place orders.
 
@@ -83,6 +83,7 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 |---|---|---|---|
 | A1 | How much money do you want to trade with this time? | Under 1,000 USD · 1,000 USD–5,000 USD · 5,000 USD–25,000 USD · Over 25,000 USD (Other = type it) | none: required |
 | A1a | *(only if a range was picked)* What's the exact amount, in dollars? | typed number | none: required (pass it as `--budget`) |
+| A1b | *(when the amount is more than one position can hold, or the user asks for a plan)* Put it all in now, or in steps? | In 4 weekly steps (spreads the timing risk) · In 2 steps · All now · My own pace (type steps and days) | 4 weekly steps |
 | A2 | What do you want to buy? | Find ideas for me · I have tickers in mind · A sector or theme · Review what I already hold | Find ideas |
 | A2a | *(tickers)* Which tickers? / *(theme)* Which sector or theme? | typed, or a theme picker: Tech/AI · Healthcare · Dividends/defensive · Gold/silver | none: required for that branch |
 | A3 | How long will you hold? | Short (days–8 weeks) · Medium (2–12 months) · Long (12+ months) | Medium |
@@ -379,6 +380,7 @@ python3 "$SKILL_DIR/scripts/size_trade.py" --asset tbill --ticker TICKER --profi
 
 ### 6d. Using results
 
+- **Money plan for the whole amount (v5.2).** When the user gives a total to invest, asks "when and what should I invest in", or the amount is bigger than one position may hold, run `money_plan.py --state ACTUAL.json --profile P [--amount USD] --steps N --every-days D > MONEY_PLAN.json` and pass `--money-plan MONEY_PLAN.json` to `render_dashboard.py`. It gives the safety cash to keep, the dated steps (in the user's time zone), the most money allowed per kind of thing, and anything to fix first. It names **no stock** and promises nothing: each step means "run the skill that day", and the names come from that day's fresh prices and checks. Say plainly that steps spread the timing risk and do not make a profit more likely. Never write such a plan by hand, and never fill a step with a ticker in advance.
 - **Honest odds (v5.1).** Every sized plan carries `needed_win_rate_pct`: of 100 trades like it, how many must reach the targets just to break even if the rest end at the stop. The renderers print it with "nobody can promise that". Never soften or drop it, and never say or imply that a plan will make money.
 - **Is it making money? (v5.1).** Every session run `journal.py report --journal JOURNAL.json [--benchmark FUND.csv] --json > REPORT.json` (when a journal exists) and pass `--journal REPORT.json` to `render_dashboard.py`. The page shows the result in plain words: no record yet, too few trades to know, not working, behind just holding the fund, or working so far. With no journal the page says there is no record and asks the user to report fills.
 - **"It passes at X or lower" (v5.1).** When the only thing wrong with a plan is that the profit is too small for the risk, the engine returns `buy_at_or_below`: the highest entry price, with the same stop and targets, at which the plan passes every gate (each candidate price is run through the full engine). The renderers print it as the fix. Never work out such a price yourself, and re-run the engine at that price with a fresh quote before calling it a plan.
@@ -814,7 +816,7 @@ python3 "$SKILL_DIR/scripts/render_dashboard.py" --plans PLAN1.json PLAN2.json \
   --state ACTUAL.json [--projected PROJECTED.json] \
   --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE." \
   [--skipped "XYZ|why dropped"] [--note "NVDA: on AFSC list"] [--source "Title|https://..."] \
-  --tz ZONE [--journal REPORT.json] --title "Trade plan YYYY-MM-DD" --out dashboard.html
+  --tz ZONE [--journal REPORT.json] [--money-plan MONEY_PLAN.json] --title "Trade plan YYYY-MM-DD" --out dashboard.html
 ```
 
 - Write `--market`, `--metals`, `--events` and every `--note` in short plain words (a 12-year-old should follow them). No jargon: say "price fell under its long average", not "below the 200-DMA".

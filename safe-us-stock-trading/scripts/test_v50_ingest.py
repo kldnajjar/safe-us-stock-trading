@@ -319,6 +319,65 @@ class HonestOdds(unittest.TestCase):
         self.assertIn("-$80.00", behind)
 
 
+class MoneyPlan(unittest.TestCase):
+    """v5.2: a plan for the whole amount: when to invest and in what kind of thing. Rules only, no picks."""
+
+    @classmethod
+    def setUpClass(cls):
+        import portfolio_state as ps, test_integration as ti
+        cls.state = ps.build(dict(cash=21000, cash_includes_open_orders=False, orders=[], holdings=[
+            dict(ticker="NVDA", asset="stock", shares=10, avg_cost=195.0, price=178.0, level=None, level_type="none",
+                 sector_weights={"Technology": 1})]), fee=ti.FEE)
+
+    def plan(self, profile="safe", **kw):
+        import money_plan as mp
+        kw.setdefault("start", dt.date(2026, 11, 11))
+        return mp.build(self.state, profile, **kw)
+
+    def test_limits_come_from_the_risk_level(self):
+        import size_trade as st
+        o, pv = self.plan("safe"), self.state["actual"]["portfolio_value"]
+        lim = o["limits"]
+        self.assertAlmostEqual(lim["safety_cash"], round(st.PROFILES["safe"]["cash_floor"] * pv, 2), places=2)
+        self.assertLessEqual(lim["free_to_invest"], 21000 - lim["safety_cash"] + 0.01)
+        self.assertLessEqual(lim["max_one_company"], st.PROFILES["safe"]["stock_cap"] * pv)
+        self.assertEqual(lim["positions_left"], st.PROFILES["safe"]["max_positions"] - 1)
+        self.assertGreater(self.plan("aggressive")["limits"]["free_to_invest"], lim["free_to_invest"])
+
+    def test_steps_never_add_up_to_more_than_the_money_and_skip_closed_days(self):
+        o = self.plan("safe", steps=4, every_days=7)
+        self.assertLessEqual(sum(r["up_to"] for r in o["steps"]), o["limits"]["planned_amount"] + 1e-9)
+        self.assertEqual([r["day"] for r in o["steps"]], ["2026-11-11", "2026-11-18", "2026-11-25", "2026-12-02"])
+        hol = self.plan("safe", steps=2, every_days=1, start=dt.date(2026, 11, 26))     # Thanksgiving, then a day on
+        self.assertEqual([r["day"] for r in hol["steps"]], ["2026-11-27", "2026-11-30"])
+
+    def test_amount_is_capped_by_free_cash_and_no_stock_is_named(self):
+        o = self.plan("safe", amount=999999)
+        self.assertEqual(o["limits"]["planned_amount"], o["limits"]["free_to_invest"])
+        self.assertEqual(self.plan("safe", amount=1500)["limits"]["planned_amount"], 1500)
+        text = json.dumps(o)
+        self.assertNotIn("NVDA", json.dumps(o["kinds"]) + json.dumps(o["steps"]))
+        self.assertIn("holding(s) with no stop: NVDA", o["blockers"][0])
+        self.assertIn("do not make a profit more likely", text)
+
+    def test_bad_input_is_refused(self):
+        import money_plan as mp
+        for kw in (dict(steps=0), dict(steps=99), dict(every_days=0), dict(amount=-5)):
+            with self.assertRaises(ValueError):
+                self.plan("safe", **kw)
+        with self.assertRaises(ValueError):
+            mp.build({}, "safe")
+
+    def test_dashboard_shows_it_in_local_time(self):
+        page = rd.render([t49.TRADE], money_plan=self.plan("safe"), tz="Asia/Amman")
+        self.assertIn("Your money plan: when, and what kind", page)
+        self.assertIn("ASK ME ON OR AFTER WED 11 NOV 17:30 AMMAN TIME", page)
+        self.assertIn("They do not make a profit more likely", page)
+        self.assertIn("FIRST: HOLDING(S) WITH NO STOP: NVDA", page)
+        self.assertNotIn("Your money plan", rd.render([t49.TRADE]))
+        rs.set_local("")
+
+
 class Marks(unittest.TestCase):
     def test_text_marks(self):
         out = rs.render([t49.FLAGGED, t49.TRADE])

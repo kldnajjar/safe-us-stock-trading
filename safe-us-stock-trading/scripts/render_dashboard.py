@@ -57,6 +57,7 @@ color:var(--mute);margin:30px 0 10px}.sub{color:var(--mute);font-size:13px}
 .badge{font-size:11px;font-weight:700;letter-spacing:.05em;padding:2px 8px;border-radius:99px}
 .banner{border-radius:10px;padding:10px 14px;margin:12px 0;font-weight:600}
 .banner.bad{background:var(--bad-bg);color:var(--bad)}.banner.warn{background:var(--warn-bg);color:var(--warn)}
+.banner.info{background:var(--info-bg);color:var(--ink);font-weight:500}.banner.ok{background:var(--ok-bg);color:var(--ok)}
 .hero{border-radius:14px;padding:18px 20px;margin:14px 0 0;border-left:8px solid}
 .hero.ok{background:var(--ok-bg);border-color:var(--ok)}.hero.warn{background:var(--warn-bg);border-color:var(--warn)}
 .hero .k{font-size:12px;font-weight:700;letter-spacing:.08em}.hero .big{font-size:30px;font-weight:800;line-height:1.15}
@@ -285,6 +286,36 @@ def account_todos(state):
 def sentence(text):
     """'TWO WORDS. MORE.' -> 'Two words. More.'"""
     return ". ".join(x.strip().capitalize() for x in str(text).split(". ") if x.strip())
+
+
+def money_plan_section(mp):
+    """'Your money plan: when and what kind' from money_plan.py. Numbers copied; times in the user's zone."""
+    if not isinstance(mp, dict) or not mp.get("steps"):
+        return ""
+    lim = mp.get("limits") or {}
+    out = ('<h2>Your money plan: when, and what kind</h2>'
+           f'<div class="banner info">i Keep <b>{money(lim.get("safety_cash"))}</b> as safety cash. '
+           f'<b>{money(lim.get("planned_amount"))}</b> to invest, in {e(mp.get("steps_count"))} step(s). '
+           'You chose the steps. They spread the timing risk. They do not make a profit more likely.</div>')
+    for bl in mp.get("blockers") or []:
+        out += f'<div class="banner bad">x FIRST: {e(str(bl).upper())}</div>'
+    rows = ""
+    for r in mp["steps"]:
+        iso = _rs.ny_wall(r.get("opens_new_york"))
+        when = _rs.when(iso) if (_rs.LOCAL and iso) else f'{r.get("day")} 09:30 NEW YORK TIME'
+        rows += (f'<tr><td><b>STEP {e(r.get("step"))}</b></td><td>ASK ME ON OR AFTER {e(when)}</td>'
+                 f'<td>{money(r.get("up_to"))}</td></tr>')
+    out += ('<div class="tbl"><table class="chk"><thead><tr><th>Step</th><th>When</th><th>Use up to</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table></div>')
+    kinds = "".join(f'<tr><td>{e(str(k.get("kind")).upper())}</td><td>{money(k.get("up_to"))}'
+                    + (f' <span class="sub">{e(k.get("note"))}</span>' if k.get("note") else "") + "</td></tr>"
+                    for k in mp.get("kinds") or [])
+    out += ('<div class="tbl" style="margin-top:10px"><table class="chk"><thead><tr><th>What kind of thing</th>'
+            f'<th>Most you may put in</th></tr></thead><tbody>{kinds}</tbody></table></div>')
+    out += ('<div class="sub" style="margin-top:8px">Which exact name? I pick it on the day, from fresh prices and both '
+            f'checks. A step with nothing good is skipped. Most you can lose on one idea: {money(lim.get("loss_limit_per_idea"))}. '
+            f'Room for risk in total: {money(lim.get("total_risk_room"))}.</div>')
+    return out
 
 
 def results_section(journal):
@@ -551,7 +582,7 @@ def sectors(state, projected):
 
 
 def render(plans, state=None, projected=None, market="", metals="", events="", notes=(), sources=(),
-           title="Trade plan", skipped=(), tz="", journal=None):
+           title="Trade plan", skipped=(), tz="", journal=None, money_plan=None):
     _rs.set_local(tz)
     # never-researched plans (screens not run) are listed once under Skipped, not as red cards
     skipped = list(skipped) + [f"{(x.get('ticker') or '?').upper()}|not researched (checks not run), not a candidate"
@@ -580,6 +611,7 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     todos = account_todos(state)
     if todos:
         p.append('<h2>Also fix in your app</h2><ol class="steps fix">' + "".join(f"<li>{e(t)}</li>" for t in todos) + "</ol>")
+    p.append(money_plan_section(money_plan))
     can_place = any(_rs.plan_kind(x) in ("buy", "park") for x in plans)
     p.append(f"<h2>{'Your choices' if can_place else 'What I looked at'}</h2>" + option_cards(plans))
     p.append(checks_table(plans))
@@ -647,6 +679,7 @@ def main(argv=None):
     ap.add_argument("--skipped", action="append", default=[], help='v4.9: "TICKER|why it was dropped"')
     ap.add_argument("--tz", default="", help="v5.1: the user's time zone, e.g. Asia/Amman or +03:00")
     ap.add_argument("--journal", help="v5.1: journal.py report JSON; shows whether the plans have made money")
+    ap.add_argument("--money-plan", help="v5.2: money_plan.py JSON; shows when to invest and in what kind of thing")
     ap.add_argument("--out")
     a = ap.parse_args(argv)
 
@@ -655,7 +688,8 @@ def main(argv=None):
             return json.load(fh)
     page = render([load(f) for f in a.plans], load(a.state) if a.state else None,
                   load(a.projected) if a.projected else None, a.market, a.metals, a.events,
-                  a.note, a.source, a.title, a.skipped, a.tz, load(a.journal) if a.journal else None)
+                  a.note, a.source, a.title, a.skipped, a.tz, load(a.journal) if a.journal else None,
+                  load(a.money_plan) if a.money_plan else None)
     if a.out:
         with open(a.out, "w") as fh:
             fh.write(page)

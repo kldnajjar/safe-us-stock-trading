@@ -4,6 +4,12 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### v5.2: a money plan for the whole amount
+
+- `money_plan.py`: from the user's own state and risk level, the safety cash to keep, dated steps for putting the money in (the user chooses how many), the most allowed per kind of thing (gold fund, broad fund, single company), and what to fix first. It names no stock and promises nothing; each step means "run the skill that day".
+- Dashboard section "Your money plan: when, and what kind", with times in the user's zone.
+- 458 tests pass.
+
 ### v5.1: times in your own time zone; a no-buy page that still tells you what to do
 
 - `--tz ZONE` on both renderers (IANA name such as `Asia/Amman`, or an offset such as `+03:00`): every time is shown in the user's zone with New York in brackets ("WED 11 NOV 17:30 AMMAN TIME (09:30 NEW YORK)"); no raw timestamps. The skill takes the zone from the session or from the country the user chose.
