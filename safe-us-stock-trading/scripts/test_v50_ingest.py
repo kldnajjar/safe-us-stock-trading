@@ -234,6 +234,53 @@ class LocalTimeAndClearNextStep(unittest.TestCase):
         self.assertNotIn("Also fix in your app", rd.render([self.CLOSED], dict(actual=dict(holdings=[]))))
 
 
+class BuyAtOrBelow(unittest.TestCase):
+    """v5.1: when only the reward:risk gate fails, the engine names the price at which the same plan passes."""
+    L = ["--profile", "safe", "--horizon", "medium", "--entry", "345.27", "--stop", "335.04", "--t1", "362.00",
+         "--t2", "372.00", "--sector-weights", '{"Tech":1}', "--stop-orders", "yes"]
+
+    @classmethod
+    def setUpClass(cls):
+        import portfolio_state as ps, test_integration as ti
+        cls.ti, cls.tmp = ti, tempfile.mkdtemp()
+        cls.sf = ti.jfile(ps.build(dict(cash=21000, cash_includes_open_orders=False, orders=[], holdings=[]),
+                                   fee=ti.FEE), cls.tmp)
+
+    def size(self, levels):
+        return self.ti.size(self.tmp, self.sf, "AAPL", "US0378331005", "stock", levels)
+
+    def at(self, price):
+        return self.size([x if x != "345.27" else f"{price:.2f}" for x in self.L])
+
+    def test_price_is_the_highest_cent_that_passes_the_full_engine(self):
+        p = self.size(self.L)
+        self.assertEqual(p["verdict"], "NO TRADE")
+        h = p["buy_at_or_below"]
+        self.assertLess(h["price"], 345.27)
+        self.assertGreater(h["price"], 335.04)
+        self.assertEqual(self.at(h["price"])["verdict"], "TRADE")
+        above = self.at(h["price"] + 0.01)
+        self.assertEqual(above["verdict"], "NO TRADE")
+        self.assertIn("net reward:risk", above["reasons"][0])
+        self.assertEqual((h["stop"], h["t1"], h["t2"]), (335.04, 362.0, 372.0))
+
+    def test_no_price_when_blocked_for_any_other_reason(self):
+        far_stop = self.size([x if x != "335.04" else "300.00" for x in self.L])
+        self.assertEqual(far_stop["verdict"], "NO TRADE")
+        self.assertNotIn("buy_at_or_below", far_stop)
+        ok = self.at(338.00)
+        self.assertEqual(ok["verdict"], "TRADE")
+        self.assertNotIn("buy_at_or_below", ok)
+
+    def test_output_says_the_price(self):
+        p = self.size(self.L)
+        px_ = f"{p['buy_at_or_below']['price']:,.2f}"
+        out = rs.render([p])
+        self.assertIn(f"IT PASSES AT {px_} OR LOWER (SAME STOP 335.04 AND TARGETS). SET A PRICE ALERT AT {px_}", out)
+        self.assertNotIn("WAIT FOR A LOWER PRICE", out)
+        self.assertIn(f"IT PASSES AT {px_} OR LOWER", rd.render([p]))
+
+
 class Marks(unittest.TestCase):
     def test_text_marks(self):
         out = rs.render([t49.FLAGGED, t49.TRADE])

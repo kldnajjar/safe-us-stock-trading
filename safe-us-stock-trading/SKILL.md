@@ -372,6 +372,7 @@ python3 "$SKILL_DIR/scripts/size_trade.py" --asset tbill --ticker TICKER --profi
 
 ### 6d. Using results
 
+- **"It passes at X or lower" (v5.1).** When the only thing wrong with a plan is that the profit is too small for the risk, the engine returns `buy_at_or_below`: the highest entry price, with the same stop and targets, at which the plan passes every gate (each candidate price is run through the full engine). The renderers print it as the fix. Never work out such a price yourself, and re-run the engine at that price with a fresh quote before calling it a plan.
 - Use the engine's numbers verbatim (label **Calculated**). On NO TRADE, say why; never adjust levels to force a pass. An engine error means NO TRADE.
 - **TRADE is provisional** until the user checks the exact order in their app: ticker, order type, limit price and shares, with the live quote inside the entry zone, and whether the app accepts a stop order for it. Then re-run with a fresh quote, `--confirm-order "TICKER|limit|PRICE|SHARES"` and `--stop-orders yes|no` (plus `--manual-stop-ack` if they accept a manual stop). It is marked ready only if all four order fields match the first order and the stop can be handled. Old confirmations and old quotes are never reused.
 - **WATCHLIST with levels** is a conditional plan: show it (the simple output prints "IF READY LATER, PLAN IS"), and tell the user what to refresh.

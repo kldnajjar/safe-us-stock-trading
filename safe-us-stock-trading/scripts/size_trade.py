@@ -69,6 +69,7 @@ T-bill ETFs follow the same market rule as price trades: --market-price is requi
 WATCHLIST) and a --price more than 1% above it is NO TRADE. The share
 quantity is found by a bounded binary search, so sizing time does not grow with account size.
 """
+import copy
 import argparse, datetime as dt, json, math, os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -1248,11 +1249,62 @@ def setup_fees(a):
     raise ValueError("no fee schedule: pass --broker ID or --fee-model with its fields")
 
 
+RR_REASON = "net reward:risk of the exit plan"
+
+
+def buy_at_or_below(orig, res):
+    """v5.1: when the ONLY thing wrong is 'profit too small for the risk', find the highest entry price
+    (whole cents, same stop and targets) at which this exact plan passes every gate. Each candidate price
+    goes through the full engine, so nothing here is a shortcut. Returns a dict, or None when there is no
+    such price or the plan was blocked for any other reason."""
+    reasons = res.get("reasons") or []
+    if (res.get("verdict") != "NO TRADE" or orig.asset == "tbill" or orig.tranches or not orig.entry or not orig.stop
+            or not reasons or not all(RR_REASON in r for r in reasons)):
+        return None
+
+    def trial(cents):
+        a2 = copy.copy(orig)
+        a2.entry = cents / 100.0
+        try:
+            out = _compute(a2)
+        except Exception:
+            return None
+        return out if out.get("verdict") in ("TRADE", "WATCHLIST") and out.get("shares") else None
+
+    lo, hi = int(round(orig.stop * 100)) + 1, int(round(orig.entry * 100)) - 1
+    if lo > hi or trial(lo) is None:
+        return None
+    best = lo
+    while lo <= hi:                                   # highest passing price; passing gets easier as price falls
+        mid = (lo + hi) // 2
+        if trial(mid) is not None:
+            best, lo = mid, mid + 1
+        else:
+            hi = mid - 1
+    out = trial(best)
+    if out is None:
+        return None
+    dn = out.get("downside") or {}
+    return dict(price=best / 100.0, shares=out["shares"],
+                cost=round(out["total_order_value"] + out["total_buy_fees"], 2),
+                planned_loss=dn.get("executable_stop_downside") or dn.get("long_term_review_level_downside"),
+                net_rr=out.get("net_rr_of_plan"), stop=orig.stop, t1=orig.t1, t2=orig.t2,
+                note="same stop and targets as this plan, today's levels only; run the engine again at that "
+                     "price with a fresh quote before placing anything")
+
+
 def compute(a):
+    orig = copy.copy(a)
     res = _compute(a)
     res.setdefault("ticker", (a.ticker or "").upper())
     res.setdefault("asset", a.asset)
     res.setdefault("placement_status", "not placeable")
+    try:
+        hint = buy_at_or_below(orig, res)
+    except Exception:
+        hint = None
+    if hint:
+        res["buy_at_or_below"] = hint
     return res
 
 

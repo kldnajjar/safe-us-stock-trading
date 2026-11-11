@@ -307,6 +307,16 @@ def explain(reason):
     return None, None
 
 
+def fix_for(d, reason):
+    """The FIX words for a reason. When the engine found the price at which the plan passes, say the price."""
+    why, fix = explain(reason)
+    h = d.get("buy_at_or_below") if isinstance(d, dict) else None
+    if h and "net reward:risk" in (reason or "").lower() and h.get("price"):
+        fix = (f"IT PASSES AT {px(h['price'])} OR LOWER (SAME STOP {px(h.get('stop') or 0)} AND TARGETS). "
+               f"SET A PRICE ALERT AT {px(h['price'])} IN YOUR APP, THEN ASK ME AGAIN.")
+    return why, fix
+
+
 def detail_lines(d, reason):
     """Extra facts behind a screen reason: which boycott lists matched, why not halal."""
     low = reason.lower()
@@ -328,7 +338,7 @@ def detail_lines(d, reason):
 
 
 def _one(d, r, label="WHY"):
-    why, fix = explain(r)
+    why, fix = fix_for(d, r)
     out = [f"  {label}: {why or r.upper()}"] + detail_lines(d, r)
     if fix:
         out.append(f"  FIX: {fix}")
@@ -675,7 +685,7 @@ def action_lines(plans, events="", skipped=()):
         near = [d for d in plans if plan_kind(d) in ("wait", "no") and d.get("tranches") and not never_researched(d)]
         for d in near[:2]:
             t = (d.get("ticker") or "?").upper()
-            why, fix = explain((d.get("reasons") or [""])[0])
+            why, fix = fix_for(d, (d.get("reasons") or [""])[0])
             step(f"CLOSEST IDEA: {t}. BLOCKED: {why or 'SEE BELOW'} {('NEXT: ' + fix) if fix else ''}".rstrip())
         mc = market_clock_of(plans)
         if mc and not mc.get("open"):

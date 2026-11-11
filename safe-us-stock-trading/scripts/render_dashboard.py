@@ -100,7 +100,8 @@ a{color:var(--info)}ul.src{padding-left:18px;font-size:14px}
 --line:#cfcfc8;--ok:#17693f;--ok-bg:#e2f3e9;--warn:#7d5200;--warn-bg:#fcefcf;--bad:#a81f14;--bad-bg:#fde5e2;
 --info:#1f5c99;--info-bg:#e4eef8}
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}main{max-width:none;padding:0}
-.opt,.tile,.card,.hero,.steps,.ctx div,tr,.secrow{break-inside:avoid}h2{break-after:avoid}details>*{display:block}}
+.opt,.tile,.card,.hero,.steps,.ctx div,tr,.secrow{break-inside:avoid}h2{break-after:avoid}
+details::details-content{content-visibility:visible;display:block}summary{list-style:none}}
 """
 
 
@@ -259,7 +260,7 @@ def option_cards(plans):
                        + _nums([("PAY", money(cost), ""), ("MAY EARN (GUESS)", money(d.get("expected_net_return")), "")])
                        + f'<div class="chips">{_chips(d)}</div></div>')
         else:
-            why, fix = _rs.explain((d.get("reasons") or [""])[0])
+            why, fix = _rs.fix_for(d, (d.get("reasons") or [""])[0])
             cls = "warn" if kind == "wait" else "bad"
             out.append(f'<div class="opt t-{cls}"><span class="tag">{chip("WAIT" if kind == "wait" else "NO BUY", cls)}</span>'
                        f'<h3>{L}. {e(t)}</h3><div class="why {cls}"><b>Why:</b> {e(why or (d.get("reasons") or ["?"])[0])}</div>'
@@ -360,7 +361,7 @@ def trade_body(d):
 
 
 def reason_html(d, r, label="Why"):
-    why, fix = _rs.explain(r)
+    why, fix = _rs.fix_for(d, r)
     out = f'<div class="reason bad"><b>{e(label)}:</b> {e(why or r)}'
     details = [x.strip(" -") for x in _rs.detail_lines(d, r)]
     if details:
