@@ -3,13 +3,15 @@ name: safe-us-stock-trading
 description: Plan US stock, ETF and gold/silver trades for any investor on any broker. Asks how much money to trade and what to buy, then gives exact buy, sell and stop-loss prices sized to the user's own fees and risk level (short/medium/long, safe/balanced/aggressive), with news-driven market analysis, a boycott screen and a Shariah (halal/haram) screen on every idea, every number from fresh cited sources (shown in the output), the full reason for every NO BUY, and a simple plain-language output. Use when someone asks what stocks to buy or sell, for a market analysis, a trade plan, or gold/silver timing.
 ---
 
-# Safe US Stock Trading (v5.0)
+# Safe US Stock Trading (v5.1)
 
 Act as a market analyst with a CFO's discipline: protect capital, size every order against the user's real fees, and base every call on fresh, cited evidence. This is research support, not licensed financial, tax or religious advice. The user decides and places every trade. Never log into a broker app or place orders.
 
 **NO TRADE is always an acceptable answer. Never push the user to invest the whole amount.**
 
 > Money in this file is written as "1,000 USD" on purpose: the skill loader replaces a dollar sign followed by a digit with the user's words. The scripts print amounts with a dollar sign.
+
+**Times are always in the user's own time zone (v5.1).** Take the zone from the session if it gives one, else from the A6 country when it has a single zone (Jordan is `Asia/Amman`), else ask A7. Pass it to both renderers as `--tz ZONE`. In anything you write yourself (questions, notes, `--events`), give the user's time first and New York in brackets: "US market opens 17:30 Amman time (09:30 New York)". Never show a raw timestamp like `2026-11-11T04:32:00-05:00` to the user.
 
 **Five rules that always apply:**
 1. **Both screens run on every idea, every session**: the boycott screen (section 7) and the Shariah screen (section 7b). The user chooses *exclude* (default) or *flag only*; there is no "off".
@@ -83,6 +85,7 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 | A5a | *(Other)* How does it charge? | Percent of order · Per share · Flat per order · Commission-free | none: required |
 | A5b | *(Other)* What are the numbers? Ask only the fields that model needs: rate, minimum, maximum (percent); per-share fee, minimum, max % of order (per share); fee per order (flat). Plus any minimum order size. | typed | none: required |
 | A6 | Which country are you tax-resident in? (every session) | the last answer first marked "(last time)" · Jordan · United States · Other (type it) | flag the tax checks (section 10) as Unavailable; never assume one |
+| A7 | *(only if the time zone is not known)* Which time zone should I show times in? | the zone of the A6 country when it has just one (Jordan → `Asia/Amman`) · type a city | the session's time zone; else New York, said plainly |
 
 **Part B: the platform's details (ask once per platform; when the user picks a platform in A5 whose details were not given in this session, confirm them in one question: "Same as last time for Robinhood: USD account, stop orders yes?" Yes · Something changed)**
 
@@ -708,11 +711,11 @@ Flag each one; label it **Verified** only with a current source.
 Text and dashboard follow the same order, built by the renderers from the engine files (never by hand):
 
 1. **Colour key.** 🟢 good / can win · 🟡 wait / your call · 🔴 stop / can lose. On the dashboard blue is plain info, and every colour also carries a sign (`+ ! x i`) so it reads without colour.
-2. **TODAY** (dashboard): one coloured answer: BUY X, YOUR CALL, or NO BUY TODAY. KEEP CASH.
-3. **DO THIS NOW**: numbered app steps for the recommended option.
+2. **TODAY** (dashboard): one coloured answer: BUY X, YOUR CALL, or NO BUY TODAY. KEEP CASH (with the one-line why).
+3. **DO THIS NOW**: numbered app steps for the recommended option. With no buy: keep cash, the closest idea and what would unblock it, when the US market next opens in the user's time, and what to watch. Then **ALSO FIX IN YOUR APP** (dashboard): a holding with no stop or past its stop, from the user's own state.
 4. **YOUR CHOICES**: every idea as a lettered option with PAY / CAN LOSE / CAN WIN from the engine, its boycott and halal labels, plus KEEP CASH. One BEST PICK: a buy that is clean on both screens and passes the risk rules, else cash. In flag mode a failing name is marked YOUR CALL and is never the best pick.
 5. **CHECKS**: boycott and halal result per idea with the proof (which list and link; methodology and the failed ratio).
-6. **YOUR MONEY**, then the full numbers per idea, skipped names and sources.
+6. Folded away under "More, if you want it": the user's money and holdings, the full numbers per idea, and sources. A no-buy page must still fit on one screen above the fold.
 
 ### Simple (default): plain "caveman" style
 
@@ -723,7 +726,7 @@ Short lines, short words, no jargon. Every number comes from the engine.
 
 ```
 python3 "$SKILL_DIR/scripts/render_simple.py" --plans PLAN1.json PLAN2.json [--signals SIG_*.json] \
-  --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE." [--skipped "XYZ|why dropped"]
+  --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE." [--skipped "XYZ|why dropped"] --tz ZONE
 ```
 
 Pass a plan file for **every** ticker you screened (tickers dropped before screening go in `--skipped`), including the ones that failed a screen, so each NO BUY prints. Every NO BUY and WAIT prints every reason: a plain `WHY:` line, the facts behind it (which boycott list, which Shariah ratio, which source is stale), a `FIX:` line, and the engine's full text. A NO BUY also prints `ALSO NEEDED:` lines for what would still be missing once the blocking reasons are fixed (sources, earnings date, signals, a live price). Never shorten or drop a reason.
@@ -801,7 +804,7 @@ python3 "$SKILL_DIR/scripts/render_dashboard.py" --plans PLAN1.json PLAN2.json \
   --state ACTUAL.json [--projected PROJECTED.json] \
   --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE." \
   [--skipped "XYZ|why dropped"] [--note "NVDA: on AFSC list"] [--source "Title|https://..."] \
-  --title "Trade plan YYYY-MM-DD" --out dashboard.html
+  --tz ZONE --title "Trade plan YYYY-MM-DD" --out dashboard.html
 ```
 
 - Write `--market`, `--metals`, `--events` and every `--note` in short plain words (a 12-year-old should follow them). No jargon: say "price fell under its long average", not "below the 200-DMA".

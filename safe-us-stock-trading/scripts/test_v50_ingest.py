@@ -187,6 +187,53 @@ class FirstRealRun(unittest.TestCase):
         self.assertEqual(page.count('href="https://www.bls.gov/cpi"'), 1)
 
 
+class LocalTimeAndClearNextStep(unittest.TestCase):
+    """v5.1: times in the user's own zone; a no-buy page still says exactly what to do."""
+    CLOSED = dict(verdict="NO TRADE", ticker="GLDM", asset="metal", profile="safe", horizon="medium",
+                  tranches=[dict(price=78.0, shares=19)], reasons=["net reward:risk of the exit plan 1.6 is below"],
+                  quote=dict(time="2026-11-11T04:32:00-05:00", status="previous_close", source="Nasdaq"),
+                  market_clock=dict(open=False, reason="before the open", next_open_new_york="2026-11-11 09:30",
+                                    now_new_york="2026-11-11T04:32-05:00"))
+
+    def tearDown(self):
+        rs.set_local("")
+
+    def test_times_in_the_users_zone(self):
+        self.assertTrue(rs.set_local("Asia/Amman"))
+        self.assertEqual(rs.when("2026-11-11T04:32:00-05:00"), "WED 11 NOV 12:32 AMMAN TIME")
+        self.assertEqual(rs.when("2026-07-06T15:05:00-04:00"), "MON 06 JUL 22:05 AMMAN TIME")
+        self.assertEqual(rs.when("2026-11-05"), "2026-11-05")                    # a plain date stays a date
+        self.assertTrue(rs.set_local("+03:00"))
+        self.assertEqual(rs.when("2026-11-11T04:32:00-05:00"), "WED 11 NOV 12:32 UTC+03:00")
+
+    def test_unknown_zone_keeps_the_engine_times(self):
+        self.assertFalse(rs.set_local("Mars/Olympus"))
+        self.assertEqual(rs.when("2026-11-11T04:32:00-05:00"), "2026-11-11T04:32:00-05:00")
+        self.assertIn("NEW YORK TIME", rs.render([self.CLOSED], tz="Mars/Olympus"))
+
+    def test_closed_market_step_and_local_open_time(self):
+        out = rs.render([self.CLOSED], tz="Asia/Amman")
+        self.assertIn("NEXT OPEN WED 11 NOV 17:30 AMMAN TIME (09:30 NEW YORK)", out)
+        self.assertIn("US MARKET IS CLOSED NOW. IT OPENS WED 11 NOV 17:30 AMMAN TIME (09:30 NEW YORK). ASK ME AGAIN", out)
+        page = rd.render([self.CLOSED], tz="Asia/Amman")
+        self.assertIn("Prices from WED 11 NOV 12:32 AMMAN TIME", page)
+        self.assertNotIn("2026-11-11T04:32:00-05:00", page)
+        self.assertIn("What I looked at", page)
+        self.assertIn("Why: <b>GLDM</b>", page)
+
+    def test_without_a_zone_nothing_changes(self):
+        out = rs.render([self.CLOSED])
+        self.assertIn("NEXT OPEN 2026-11-11 09:30 NEW YORK TIME.", out)
+
+    def test_account_todos_from_the_users_own_state(self):
+        state = dict(actual=dict(unquantified=["NVDA"], breached=["XYZ"], holdings=[]))
+        page = rd.render([self.CLOSED], state)
+        self.assertIn("Also fix in your app", page)
+        self.assertIn("NVDA HAS NO STOP. PICK A PRICE WHERE YOU WOULD SELL", page)
+        self.assertIn("XYZ IS PAST ITS STOP", page)
+        self.assertNotIn("Also fix in your app", rd.render([self.CLOSED], dict(actual=dict(holdings=[]))))
+
+
 class Marks(unittest.TestCase):
     def test_text_marks(self):
         out = rs.render([t49.FLAGGED, t49.TRADE])

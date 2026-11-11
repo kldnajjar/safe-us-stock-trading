@@ -50,7 +50,7 @@ main{max-width:980px;margin:0 auto;padding:20px 14px 48px}
 h1{font-size:20px;margin:0 0 2px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;
 color:var(--mute);margin:30px 0 10px}.sub{color:var(--mute);font-size:13px}
 .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.info{color:var(--info)}
-.legend{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;font-size:12px}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;font-size:12px;opacity:.85}
 .chip{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap}
 .chip.ok,.badge.ok{background:var(--ok-bg)}.chip.warn,.badge.warn{background:var(--warn-bg)}
 .chip.bad,.badge.bad{background:var(--bad-bg)}.chip.info{background:var(--info-bg)}
@@ -62,7 +62,8 @@ color:var(--mute);margin:30px 0 10px}.sub{color:var(--mute);font-size:13px}
 .hero .k{font-size:12px;font-weight:700;letter-spacing:.08em}.hero .big{font-size:30px;font-weight:800;line-height:1.15}
 .hero .say{color:var(--ink);font-size:16px;margin-top:6px}
 .steps{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 16px 6px 44px;margin:0}
-.steps li{padding:8px 4px;border-top:1px solid var(--line);font-weight:600}.steps li:first-child{border-top:0}
+.steps li{padding:10px 4px;border-top:1px solid var(--line);font-weight:650;font-size:17px}
+.steps.fix{border-left:6px solid var(--bad)}.steps li:first-child{border-top:0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
 .opt,.tile,.card,.tbl,.ctx div{background:var(--card);border:1px solid var(--line);border-radius:12px}
 .opt{padding:14px 16px;border-top:5px solid var(--line)}.opt.t-ok{border-top-color:var(--ok)}
@@ -216,8 +217,14 @@ def hero(plans):
         return (f'<div class="hero warn"><div class="k warn">TODAY</div><div class="big warn">YOUR CALL: {e(names)}</div>'
                 '<div class="say">These fit your money rules, but a check failed, was not run, or the fund pays interest. '
                 'Look at CHECKS below. Keeping cash is also fine.</div></div>')
+    why = []
+    for x in plans[:2]:
+        w, _f = _rs.explain((x.get("reasons") or [""])[0])
+        if w:
+            why.append(f'<b>{e((x.get("ticker") or "?").upper())}</b>: {e(w.capitalize())}')
     return ('<div class="hero warn"><div class="k warn">TODAY</div><div class="big warn">NO BUY TODAY. KEEP CASH.</div>'
-            '<div class="say">Nothing passed today. Keeping cash is a good result.</div></div>')
+            '<div class="say">Nothing passed today. Keeping cash is a good result.'
+            + (" Why: " + " ".join(why) if why else "") + '</div></div>')
 
 
 def option_cards(plans):
@@ -227,9 +234,8 @@ def option_cards(plans):
     for L, _text, _labels, _ok, _dot, d in rows:
         if d is None:
             cls = "ok" if rec == L else "info"
-            out.append(f'<div class="opt t-{cls}"><span class="tag">{chip("BEST PICK" if rec == L else "SAFE", cls)}</span>'
-                       f'<h3>{L}. KEEP CASH</h3><div class="sub">Do nothing today</div>'
-                       + _nums([("PAY", "$0.00", ""), ("CAN LOSE", "$0.00", ""), ("CAN WIN", "$0.00", "")]) + "</div>")
+            out.append(f'<div class="opt t-{cls}"><span class="tag">{chip("BEST PICK" if rec == L else "ALWAYS OK", cls)}</span>'
+                       f'<h3>{L}. KEEP CASH</h3><div class="sub">Do nothing. Pay $0. Can lose $0. Can win $0.</div></div>')
             continue
         t, kind = (d.get("ticker") or d.get("asset") or "?").upper(), _rs.plan_kind(d)
         if kind == "buy":
@@ -260,6 +266,16 @@ def option_cards(plans):
                        + (f'<div class="why"><b>Fix:</b> {e(fix)}</div>' if fix else '')
                        + f'<div class="chips" style="margin-top:8px">{_chips(d)}</div></div>')
     return '<div class="grid">' + "".join(out) + "</div>"
+
+
+def account_todos(state):
+    """Things to fix in the user's own account, from the state the user gave. Plain words, no numbers invented."""
+    a = (state or {}).get("actual") or {}
+    out = [f"{t} IS PAST ITS STOP. IN YOUR APP: SELL IT, OR SET A NEW STOP. NO NEW BUYS UNTIL THEN."
+           for t in a.get("breached") or []]
+    out += [f"{t} HAS NO STOP. PICK A PRICE WHERE YOU WOULD SELL AND SET IT IN YOUR APP. THEN TELL ME THE PRICE."
+            for t in a.get("unquantified") or []]
+    return out
 
 
 def checks_table(plans):
@@ -303,7 +319,7 @@ def quote_line(d):
         return "Price time: UNKNOWN"
     st = str(q.get("status", "")).upper() + (f" {q['delay_min']}M" if q.get("delay_min") else "")
     mp = f", price {px(q['market_price'])}" if q.get("market_price") is not None else ""
-    return f"Price seen {q['time']} ({st}, {q.get('source') or 'source?'}){mp}. Good only for this price."
+    return f"Price seen {_rs.when(q['time'])} ({st}, {q.get('source') or 'source?'}){mp}. Good only for this price."
 
 
 def trade_body(d):
@@ -500,7 +516,8 @@ def sectors(state, projected):
 
 
 def render(plans, state=None, projected=None, market="", metals="", events="", notes=(), sources=(),
-           title="Trade plan", skipped=()):
+           title="Trade plan", skipped=(), tz=""):
+    _rs.set_local(tz)
     # never-researched plans (screens not run) are listed once under Skipped, not as red cards
     skipped = list(skipped) + [f"{(x.get('ticker') or '?').upper()}|not researched (checks not run), not a candidate"
                                for x in plans if _rs.never_researched(x)]
@@ -509,37 +526,41 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     plans = sorted(plans, key=lambda x: (kinds[_rs.plan_kind(x)], not _rs.is_clean(x)))
     first = next((p for p in plans if p.get("profile")), {})
     asof = next((get(p, "quote", "time") for p in plans if get(p, "quote", "time")), "")
-    p = [f'<h1>{e(title)}</h1><div class="sub">Risk {e(str(first.get("profile") or "n/a").upper())} · '
-         f'hold {e(str(first.get("horizon") or "n/a").upper())} · app {e(first.get("broker") or "n/a")}'
-         + (f" · price seen {e(asof)}" if asof else "") + "</div>",
-         '<div class="legend">' + chip("GREEN = GOOD / CAN WIN", "ok") + chip("YELLOW = WAIT / YOUR CALL", "warn")
-         + chip("RED = STOP / CAN LOSE", "bad") + chip("BLUE = INFO", "info") + "</div>"]
+    p = [f'<h1>{e(title)}</h1><div class="sub">'
+         + (f"Prices from {e(_rs.when(asof))} · " if asof else "")
+         + f'Risk {e(str(first.get("profile") or "n/a").upper())} · '
+         f'hold {e(str(first.get("horizon") or "n/a").upper())} · app {e(first.get("broker") or "n/a")}</div>']
     if (state or {}).get("reconciliation_required"):
         p.append('<div class="banner bad">x A thing you hold is past its stop. No new trades until '
                  'you fix it in the app.</div>')
     mc = next((x.get("market_clock") for x in plans if x.get("market_clock")), None)
     if mc and not mc.get("open"):
         p.append(f'<div class="banner warn">! NYSE closed ({e(mc.get("reason"))}). US market opens '
-                 f'{e(mc.get("next_open_new_york", "?"))} New York time. Run again then.</div>')
+                 f'{e(_rs.market_open_words(mc))}. Ask again then.</div>')
     pick = best_pick(plans)
     p.append(hero(plans))
     steps = [ln.strip() for ln in _rs.action_lines(plans, events)[1:] if ln.strip()]
     p.append('<h2>Do this now</h2><ol class="steps">'
              + "".join(f"<li>{e(ln.split('. ', 1)[1] if '. ' in ln else ln)}</li>" for ln in steps) + "</ol>")
-    p.append("<h2>Your choices</h2>" + option_cards(plans))
+    todos = account_todos(state)
+    if todos:
+        p.append('<h2>Also fix in your app</h2><ol class="steps fix">' + "".join(f"<li>{e(t)}</li>" for t in todos) + "</ol>")
+    can_place = any(_rs.plan_kind(x) in ("buy", "park") for x in plans)
+    p.append(f"<h2>{'Your choices' if can_place else 'What I looked at'}</h2>" + option_cards(plans))
     p.append(checks_table(plans))
+    p.append('<div class="legend">' + chip("GREEN = GOOD / CAN WIN", "ok") + chip("YELLOW = WAIT / YOUR CALL", "warn")
+             + chip("RED = STOP / CAN LOSE", "bad") + chip("BLUE = INFO", "info") + "</div>")
     ctx = [(k, v) for k, v in (("Market", market), ("Gold / silver", metals), ("Watch these days", events)) if v]
     if ctx:
         p.append('<h2>What is going on</h2><div class="ctx">'
                  + "".join(f"<div><b>i {e(k)}</b>{e(v)}</div>" for k, v in ctx) + "</div>")
     t = tiles(plans, state)
     if t or state:
-        p.append("<h2>Your money</h2>" + t)
-    if state:
-        p.append('<div style="margin-top:10px">' + holdings_table(state) + "</div>")
-        p.append(sectors(state, projected))
+        p.append("<h2>More, if you want it</h2><details><summary>Your money and what you hold</summary>" + t
+                 + ('<div style="margin-top:10px">' + holdings_table(state) + "</div>" + sectors(state, projected) if state else "")
+                 + "</details>")
     if plans:
-        p.append("<h2>All the numbers</h2>" + "".join(
+        p.append("".join(
             f'<details{" open" if x is pick else ""}>'
             f'<summary>{e((x.get("ticker") or x.get("asset") or "?").upper())}: full plan and safety notes</summary>'
             f'{card(x)}</details>' for x in plans))
@@ -556,7 +577,7 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
             if u in seen or not u.startswith("https://"):
                 continue
             seen.add(u)
-            when = it.get("published_at") or it.get("observed_at") or ""
+            when = _rs.when(it.get("published_at") or it.get("observed_at") or "")
             links.append(f'<li><a href="{e(u)}" rel="noopener noreferrer">{e(it.get("source_name"))}: '
                          f'{e(it.get("what") or it.get("category"))}</a> <span class="sub">{e(when)}</span></li>')
     for s in sources:
@@ -588,6 +609,7 @@ def main(argv=None):
     ap.add_argument("--source", action="append", default=[], help='"Title|https://url"')
     ap.add_argument("--title", default="Trade plan")
     ap.add_argument("--skipped", action="append", default=[], help='v4.9: "TICKER|why it was dropped"')
+    ap.add_argument("--tz", default="", help="v5.1: the user's time zone, e.g. Asia/Amman or +03:00")
     ap.add_argument("--out")
     a = ap.parse_args(argv)
 
@@ -596,7 +618,7 @@ def main(argv=None):
             return json.load(fh)
     page = render([load(f) for f in a.plans], load(a.state) if a.state else None,
                   load(a.projected) if a.projected else None, a.market, a.metals, a.events,
-                  a.note, a.source, a.title, a.skipped)
+                  a.note, a.source, a.title, a.skipped, a.tz)
     if a.out:
         with open(a.out, "w") as fh:
             fh.write(page)

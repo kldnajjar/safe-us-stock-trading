@@ -4,6 +4,12 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### v5.1: times in your own time zone; a no-buy page that still tells you what to do
+
+- `--tz ZONE` on both renderers (IANA name such as `Asia/Amman`, or an offset such as `+03:00`): every time is shown in the user's zone with New York in brackets ("WED 11 NOV 17:30 AMMAN TIME (09:30 NEW YORK)"); no raw timestamps. The skill takes the zone from the session or from the country the user chose.
+- No-buy pages: the answer carries its one-line why; the steps say when the US market next opens in the user's time; **ALSO FIX IN YOUR APP** lists a holding with no stop or past its stop; the page is headed "What I looked at"; money, holdings and full numbers are folded under "More, if you want it"; the colour key moved below the checks.
+- 447 tests pass.
+
 ### v5.0: simple, colour-coded dashboard; one-call data intake; one-card run
 
 **Changed**

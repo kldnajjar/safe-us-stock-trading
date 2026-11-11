@@ -19,6 +19,83 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from portfolio_state import plan_is_trade  # noqa: E402
 
 
+import datetime as _dt
+import market_clock as _mc  # noqa: E402
+
+LOCAL = None          # (tzinfo, "AMMAN TIME") once set_local() ran; None = show times as the engine gave them
+
+
+def set_local(tz):
+    """v5.1: show every time in the user's own time zone. tz is an IANA name ('Asia/Amman') or a fixed
+    offset ('+03:00'). Returns True when it was understood; otherwise times stay as they were."""
+    global LOCAL
+    LOCAL = None
+    tz = (tz or "").strip()
+    if not tz:
+        return False
+    try:
+        if tz[0] in "+-":
+            h, _, m = tz[1:].partition(":")
+            off = _dt.timedelta(hours=int(h), minutes=int(m or 0)) * (1 if tz[0] == "+" else -1)
+            LOCAL = (_dt.timezone(off), f"UTC{tz}")
+        else:
+            from zoneinfo import ZoneInfo
+            LOCAL = (ZoneInfo(tz), tz.split("/")[-1].replace("_", " ").upper() + " TIME")
+        _dt.datetime.now(LOCAL[0])
+        return True
+    except Exception:
+        LOCAL = None
+        return False
+
+
+def when(iso):
+    """An ISO time with an offset -> 'WED 11 NOV 12:32 AMMAN TIME' in the user's zone. Anything else
+    (no zone set, a plain date, unreadable text) is returned unchanged."""
+    if not LOCAL or not isinstance(iso, str) or "T" not in iso:
+        return iso
+    try:
+        t = _dt.datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            return iso
+        return t.astimezone(LOCAL[0]).strftime("%a %d %b %H:%M").upper() + " " + LOCAL[1]
+    except ValueError:
+        return iso
+
+
+def ny_wall(text):
+    """'2026-11-11 09:30' on the New York clock -> an ISO time with the right offset (or None)."""
+    try:
+        naive = _dt.datetime.strptime(text, "%Y-%m-%d %H:%M")
+    except (TypeError, ValueError):
+        return None
+    for off in (-5, -4):
+        aware = naive.replace(tzinfo=_dt.timezone(_dt.timedelta(hours=off)))
+        if _mc.ny_offset_hours(aware.astimezone(_dt.timezone.utc)) == off:
+            return aware.isoformat()
+    return None
+
+
+def market_open_words(mc):
+    """When the US market next opens, in the user's zone first: 'WED 11 NOV 17:30 AMMAN TIME (09:30 NEW YORK)'."""
+    nxt = (mc or {}).get("next_open_new_york")
+    iso = ny_wall(nxt)
+    if LOCAL and iso:
+        return f"{when(iso)} ({nxt[-5:]} NEW YORK)"
+    return f"{nxt or '?'} NEW YORK TIME"
+
+
+def market_close_words(mc):
+    closes = (mc or {}).get("closes")
+    iso = ny_wall(f"{str((mc or {}).get('now_new_york', ''))[:10]} {closes}")
+    if LOCAL and iso:
+        return f"{when(iso)} ({closes} NEW YORK)"
+    return f"{closes} NEW YORK TIME"
+
+
+def market_clock_of(plans):
+    return next((d.get("market_clock") for d in plans if d.get("market_clock")), None)
+
+
 def money(x):
     return f"${x:,.2f}"
 
@@ -127,7 +204,7 @@ def quote_line(d):
     if q.get("delay_min"):
         status += f" {q['delay_min']}M"
     mp = f" PRICE {px(q['market_price'])}" if q.get("market_price") is not None else ""
-    return [f"  PRICE SEEN {q['time']} ({status}, {q.get('source') or 'SOURCE?'}){mp}. GOOD ONLY FOR THIS PRICE."]
+    return [f"  PRICE SEEN {when(q['time'])} ({status}, {q.get('source') or 'SOURCE?'}){mp}. GOOD ONLY FOR THIS PRICE."]
 
 
 # v4.8: plain-language reasons. (pattern in the engine text, lower case) -> (why, what to do)
@@ -272,7 +349,8 @@ def reason_block(d):
 
 
 def _short_time(s):
-    return (s or "?").replace("T", " ")[:16]
+    local = when(s)
+    return local if local != s else (s or "?").replace("T", " ")[:16]
 
 
 def sources_lines(d):
@@ -316,7 +394,7 @@ def market_sources(plans):
                    None)
     if not out:
         return []
-    return [f"SOURCES (CHECKED {_short_time(checked)} UTC):"] + out
+    return [f"SOURCES (CHECKED {_short_time(checked)}{'' if LOCAL else ' UTC'}):"] + out
 
 
 def screen_source_line(d):
@@ -599,11 +677,15 @@ def action_lines(plans, events="", skipped=()):
             t = (d.get("ticker") or "?").upper()
             why, fix = explain((d.get("reasons") or [""])[0])
             step(f"CLOSEST IDEA: {t}. BLOCKED: {why or 'SEE BELOW'} {('NEXT: ' + fix) if fix else ''}".rstrip())
+        mc = market_clock_of(plans)
+        if mc and not mc.get("open"):
+            step(f"US MARKET IS CLOSED NOW. IT OPENS {market_open_words(mc)}. ASK ME AGAIN AFTER THAT FOR LIVE PRICES.")
         step("RE-RUN ME" + (f" AFTER: {events.upper().rstrip('. ')}" if events else " TOMORROW") + ".")
     return out + [""]
 
 
-def render(plans, market="", metals="", events="", signals=None, skipped=()):
+def render(plans, market="", metals="", events="", signals=None, skipped=(), tz=""):
+    set_local(tz)
     lines = [f"{GREEN} GOOD   {YELLOW} WAIT / YOUR CALL   {RED} STOP"]
     first = next((d for d in plans if d.get("profile")), None)
     if first:
@@ -611,11 +693,11 @@ def render(plans, market="", metals="", events="", signals=None, skipped=()):
     mc = next((d.get("market_clock") for d in plans if d.get("market_clock")), None)
     if mc:
         if mc.get("open"):
-            line = f"NYSE: OPEN. CLOSES {mc.get('closes')} NEW YORK TIME"
+            line = f"NYSE: OPEN. CLOSES {market_close_words(mc)}"
             line += " (EARLY CLOSE TODAY)." if mc.get("early_close") else "."
         else:
             line = (f"NYSE: CLOSED ({str(mc.get('reason', '')).upper()}). "
-                    f"NEXT OPEN {mc.get('next_open_new_york', '?')} NEW YORK TIME.")
+                    f"NEXT OPEN {market_open_words(mc)}.")
         lines.append(line)
         if mc.get("warning"):
             lines.append("  !! HOLIDAY LIST NOT LOADED FOR THIS YEAR. CHECK NYSE.COM. !!")
@@ -683,6 +765,7 @@ def main(argv=None):
     ap.add_argument("--signals", nargs="*", default=[], help="signals.py outputs; AVOID names get a NO BUY with the why")
     ap.add_argument("--skipped", action="append", default=[],
                     help='v4.9: "TICKER|why it was dropped before screening", one line each under SKIPPED')
+    ap.add_argument("--tz", default="", help="v5.1: the user's time zone, e.g. Asia/Amman or +03:00; all times are shown in it")
     a = ap.parse_args(argv)
     plans = []
     for p in a.plans:
@@ -695,7 +778,7 @@ def main(argv=None):
     for p in a.signals:
         with open(p) as f:
             sigs.append(json.load(f))
-    sys.stdout.write(render(plans, a.market, a.metals, a.events, sigs, a.skipped))
+    sys.stdout.write(render(plans, a.market, a.metals, a.events, sigs, a.skipped, a.tz))
 
 
 if __name__ == "__main__":
