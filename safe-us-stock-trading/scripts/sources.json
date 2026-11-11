@@ -2,7 +2,7 @@
   "schema": "source-registry/1",
   "verified_on": "2026-11-09",
   "max_age_days": 180,
-  "note": "Maintainer-edited only. Never edit during a session. Tier 1 = official/primary (regulator, statistics agency, central bank, exchange, the company's own SEC filing). Tier 2 = wire service or major financial press. Tier 3 = data aggregator or quote site. Higher tier wins when sources disagree.",
+  "note": "Maintainer-edited only. Never edit during a session. Tier 1 = official/primary (regulator, statistics agency, central bank, exchange, the company's own SEC filing). Tier 2 = wire service or major financial press. Tier 3 = data aggregator or quote site. Higher tier wins when sources disagree. Readable sources only: outlets behind a paywall or that block automated readers are not registered (removed 2026-11-11: Bloomberg, FT, WSJ, The Economist, Barron's, Nikkei Asia).",
   "max_session_age_minutes": 60,
   "sources": {
     "sec_edgar": {
@@ -121,27 +121,6 @@
         "apnews.com"
       ]
     },
-    "bloomberg": {
-      "name": "Bloomberg",
-      "tier": 2,
-      "domains": [
-        "bloomberg.com"
-      ]
-    },
-    "ft": {
-      "name": "Financial Times",
-      "tier": 2,
-      "domains": [
-        "ft.com"
-      ]
-    },
-    "wsj": {
-      "name": "The Wall Street Journal",
-      "tier": 2,
-      "domains": [
-        "wsj.com"
-      ]
-    },
     "cnbc": {
       "name": "CNBC",
       "tier": 2,
@@ -157,25 +136,11 @@
         "bbc.co.uk"
       ]
     },
-    "economist": {
-      "name": "The Economist",
-      "tier": 2,
-      "domains": [
-        "economist.com"
-      ]
-    },
     "marketwatch": {
       "name": "MarketWatch",
       "tier": 2,
       "domains": [
         "marketwatch.com"
-      ]
-    },
-    "barrons": {
-      "name": "Barron's",
-      "tier": 2,
-      "domains": [
-        "barrons.com"
       ]
     },
     "aljazeera": {
@@ -190,13 +155,6 @@
       "tier": 2,
       "domains": [
         "theguardian.com"
-      ]
-    },
-    "nikkei": {
-      "name": "Nikkei Asia",
-      "tier": 2,
-      "domains": [
-        "nikkei.com"
       ]
     },
     "yahoo": {
@@ -250,8 +208,7 @@
         "stockanalysis",
         "cnbc",
         "marketwatch",
-        "reuters",
-        "bloomberg"
+        "reuters"
       ],
       "requires": [
         "value"
@@ -394,8 +351,6 @@
       "allowed": [
         "investing",
         "reuters",
-        "bloomberg",
-        "wsj",
         "marketwatch",
         "cnbc"
       ],
@@ -417,17 +372,11 @@
         "nyse",
         "reuters",
         "ap",
-        "bloomberg",
-        "ft",
-        "wsj",
         "cnbc",
         "bbc",
-        "economist",
         "marketwatch",
-        "barrons",
         "aljazeera",
         "guardian",
-        "nikkei",
         "yahoo"
       ],
       "requires": [

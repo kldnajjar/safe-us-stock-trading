@@ -78,7 +78,8 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 | A2a | *(tickers)* Which tickers? / *(theme)* Which sector or theme? | typed, or a theme picker: Tech/AI · Healthcare · Dividends/defensive · Gold/silver | none: required for that branch |
 | A3 | How long will you hold? | Short (days–8 weeks) · Medium (2–12 months) · Long (12+ months) | Medium |
 | A4 | How much risk? | Safe · Balanced · Aggressive (show the per-stock cap and planned loss per idea for each) | Safe |
-| A5 | Which platform is this trade on? (every session) | one option per non-template profile in `scripts/brokers.json` (today: Bank al Etihad, Robinhood), the last-used one first marked "(last time)" · Other (type its name) | none: required (no fee schedule means NO TRADE) |
+| A5 | Which platform is this trade on? (every session) | Bank al Etihad · Robinhood · Other (type its name), the last-used one first marked "(last time)" | none: required (no fee schedule means NO TRADE) |
+| A5r | *(Robinhood)* Which Robinhood account? | United States (`robinhood`) · United Kingdom (`robinhood-uk`) · Singapore (`robinhood-sg`) · Europe / other (stock tokens, not shares: not supported; answer A5a–A5b with its fees) | none: required; never assume the US one |
 | A5a | *(Other)* How does it charge? | Percent of order · Per share · Flat per order · Commission-free | none: required |
 | A5b | *(Other)* What are the numbers? Ask only the fields that model needs: rate, minimum, maximum (percent); per-share fee, minimum, max % of order (per share); fee per order (flat). Plus any minimum order size. | typed | none: required |
 | A6 | Which country are you tax-resident in? (every session) | the last answer first marked "(last time)" · Jordan · United States · Other (type it) | flag the tax checks (section 10) as Unavailable; never assume one |
@@ -114,7 +115,6 @@ B4–B5a apply to every platform. In a later session, confirm them in one questi
 | Trigger | Question | Answer |
 |---|---|---|
 | A holding or order has no sector data | Which sector is TICKER in? | picker of likely sectors · Not sure (stays `Unclassified`, worst case) |
-| Boycott screen starts (once per session) | Do you want bl00d.money checked too? I can't read that site myself; you look the name up and tell me. | Yes, I'll check (then: what does it say for TICKER? Listed · Not listed) · No, skip it |
 | Boycott FLAGGED result | TICKER is flagged (material Israeli operations, not on a list). Include it anyway? | Include · Skip it |
 | Shariah REQUIRES_ACCEPTANCE | TICKER passes the screen but misses the index entry buffer (reason). Include it anyway? | Include · Skip it |
 | Metal trust or T-bill ETF with boycott on | How should US government bonds be treated for the boycott screen? (ask once) | Exclude · Allow |
@@ -157,7 +157,7 @@ These limits are design defaults, not validated optimal allocations.
 
 ## 2. Platform and fees (`scripts/brokers.json`)
 
-- **Built-in profiles :** `bank-al-etihad-jo` (0.5% per order, 0.50 USD min, 30 USD max, user-provided) and `robinhood` (commission-free US stocks/ETFs, verified 2026-11-09 against Robinhood's fee page; tiny SEC/FINRA fees on sells are covered by `--friction-bps`; uninvested cash may earn interest, so flag purification when the Shariah screen is on). US Robinhood accounts are for US residents.
+- **Built-in profiles:** `bank-al-etihad-jo` (0.5% per order, 0.50 USD min, 30 USD max, user-provided) and three Robinhood accounts the user chooses between (A5r), all commission-free on US stocks and ETFs and verified against Robinhood's own published fees: `robinhood` (United States), `robinhood-uk` (0.10% when converting GBP and USD, 0.30% late Friday) and `robinhood-sg` (Singapore). Small US regulatory fees on sells are covered by `--friction-bps`. Uninvested cash may earn interest: flag purification when the Shariah screen is on. Robinhood Europe sells stock tokens, not shares, and has no profile.
 - **More than one platform:** ask which account this trade is for (A5), build that account's state only (cash, holdings and orders as that app shows them), and size against it. Never mix cash or holdings across apps; mention holdings in the other app only for sector and concentration context the user gives.
 - Every fee is charged **per order** by the engine, from a broker profile (`--broker ID`) or explicit flags. There is no default fee schedule: without one, the engine returns NO TRADE.
 - Fee models:
@@ -392,8 +392,6 @@ Screens out companies complicit with Israel. The status is **computed by `boycot
 | `whoprofits` | Who Profits | whoprofits.org |
 | `sec` | SEC filings | sec.gov EDGAR; also record `israel_hq` and `material_israel_ops` as true or false |
 
-   **Extra source (optional, v5.0): `bloodmoney`, https://bl00d.money/.** The site refuses automated readers (web fetch is blocked by its robots rule), so do not try to scrape it. Ask the user once per session (Part D): "Do you want bl00d.money checked too? You can look the company up there and tell me what it says." Record what the user reports as `"bloodmoney": {"finding": "match|no_match", "checked_on": "YYYY-MM-DD", "url": "https://bl00d.money/..."}`. A match **flags** the name (shown with its link, user decides) in both strictness levels; it never excludes on its own, and leaving it out never blocks or clears anything. The output says "BL00D.MONEY NOT CHECKED" when it was not checked.
-
 3. **Write the evidence and run the screen** (the evidence format is in the script header):
 
 ```
@@ -516,13 +514,13 @@ Search fresh every run; never use remembered prices or rates. Show the observati
 | Tier | What | Examples |
 |---|---|---|
 | 1, official / primary | The regulator, statistics agency, central bank, exchange, fund issuer, or the company's own SEC filing | SEC EDGAR, Nasdaq, NYSE, Cboe, Federal Reserve, BLS, BEA, Treasury, FRED, CME FedWatch, EIA, WGC, iShares/SPDR/Vanguard |
-| 2, wire / major press | Fast and edited, but a report about the fact | Reuters, AP, Bloomberg, FT, WSJ, CNBC, BBC, MarketWatch |
+| 2, wire / major press | Fast and edited, but a report about the fact | Reuters, AP, CNBC, BBC, MarketWatch |
 | 3, data site | Convenient copies of tier-1 data | Yahoo Finance, Stooq, StockAnalysis, Investing.com, Morningstar |
 
 Rules (from practice; also how the open-source trader-skill pack treats SEC and news data):
 - **Filed numbers first.** Revenue, EPS, debt, cash, receivables and income come only from the 10-Q/10-K on SEC EDGAR (the `fundamentals` category accepts nothing else). Press releases and data sites are context.
 - **Check that the filing is the latest one.** Open the company's EDGAR filing list the same day (`latest_filing_checked_at`). SEC's XBRL "company facts" API can lag a new filing: if the newest 10-Q is later than the newest quarter in the facts, read the 10-Q itself.
-- **Headlines are leads, not facts.** Open the story or the filing before reporting it. If an 8-K and a headline disagree, the 8-K is what the company told the SEC. Never summarise a paywalled story you couldn't read: say it is paywalled.
+- **Headlines are leads, not facts.** Open the story or the filing before reporting it. If an 8-K and a headline disagree, the 8-K is what the company told the SEC. A story you couldn't open is not a source.
 - **Two sources for every price.** Read the exchange (Nasdaq/NYSE) plus a second quote site. If they differ by more than 0.5% the check returns CONFLICT; re-read both and trust the exchange.
 - **Two outlets, or one official source, for every market-moving claim** (the check warns otherwise).
 - **A scheduled release must be the latest.** Record each release's `next_release` date; once it has passed, the old number is STALE.
@@ -551,19 +549,13 @@ Rules (from practice; also how the open-source trader-skill pack treats SEC and 
 | 2 | BBC News: World | bbc.com/news/world | feeds.bbci.co.uk/news/world/rss.xml |
 | 3 | Reuters | reuters.com/markets, /world | none public; use WebSearch |
 | 4 | Associated Press | apnews.com/hub/business | none public; use WebSearch |
-| 5 | Bloomberg | bloomberg.com/markets | paywalled |
-| 6 | Financial Times | ft.com/markets | paywalled |
-| 7 | The Wall Street Journal | wsj.com/finance | paywalled |
-| 8 | CNBC | cnbc.com/markets | cnbc.com/id/100003114/device/rss/rss.html |
-| 9 | The Economist | economist.com/finance-and-economics | paywalled |
-| 10 | MarketWatch | marketwatch.com | feeds.marketwatch.com/marketwatch/topstories/ |
-| 11 | Barron's | barrons.com | paywalled |
-| 12 | Yahoo Finance | finance.yahoo.com/news | finance.yahoo.com/news/rssindex |
-| 13 | Al Jazeera: Economy | aljazeera.com/economy | aljazeera.com/xml/rss/all.xml |
-| 14 | The Guardian: Business | theguardian.com/business | theguardian.com/business/rss |
-| 15 | Nikkei Asia | asia.nikkei.com | paywalled |
+| 5 | CNBC | cnbc.com/markets | cnbc.com/id/100003114/device/rss/rss.html |
+| 6 | MarketWatch | marketwatch.com | feeds.marketwatch.com/marketwatch/topstories/ |
+| 7 | Yahoo Finance | finance.yahoo.com/news | finance.yahoo.com/news/rssindex |
+| 8 | Al Jazeera: Economy | aljazeera.com/economy | aljazeera.com/xml/rss/all.xml |
+| 9 | The Guardian: Business | theguardian.com/business | theguardian.com/business/rss |
 
-- For paywalled outlets, use the headline and public summary only. Never try to get around a paywall.
+- **Readable sources only.** A source that can't be read (the site blocks automated readers, sits behind a paywall or needs a login) is not used and not cited: drop it and use another source for that fact. Never work around a block. If a source in this file stops being readable, say so in the output and tell the maintainer so it is removed.
 - Prefer two independent outlets for any market-moving claim.
 
 ### 8a. Source ledger and freshness check (mandatory)
@@ -587,7 +579,7 @@ Re-adding the same page (same category, ticker and URL) replaces the old entry; 
 
 | Category | Accepted sources (tier) | Fresh means |
 |---|---|---|
-| `quote` | Nasdaq, NYSE, Cboe (1); Reuters, Bloomberg, CNBC, MarketWatch (2); Yahoo, Stooq, StockAnalysis (3) | read <= 15 min ago (+ stated delay, max 20); two sources within 0.5% |
+| `quote` | Nasdaq, NYSE, Cboe (1); Reuters, CNBC, MarketWatch (2); Yahoo, Stooq, StockAnalysis (3) | read <= 15 min ago (+ stated delay, max 20); two sources within 0.5% |
 | `price_history` (MAs, ATR, swings, 52-week) | Nasdaq, NYSE, MarketWatch, Yahoo, Stooq, StockAnalysis, Investing, Morningstar | read today; history includes the latest session (<= 4 days) |
 | `earnings_date` | SEC, Nasdaq, NYSE, Reuters, Yahoo, StockAnalysis, MarketWatch, Investing | read today; `event_date` recorded and not yet passed |
 | `fundamentals` | **SEC EDGAR only** | filed <= 135 days ago; EDGAR filing list re-checked within 24 h |
@@ -595,7 +587,7 @@ Re-adding the same page (same category, ticker and URL) replaces the old entry; 
 | `consensus` | StockAnalysis, Yahoo, MarketWatch, Investing, Morningstar, Nasdaq, Reuters, CNBC | read today |
 | `macro_release` (FOMC, CPI, jobs, PPI, GDP, PCE, WGC) | Fed, BLS, BEA, Treasury, EIA, WGC (official only) | read today; `next_release` not yet passed |
 | `market_series` (yields, DFII10, DTWEXBGS, VIX, FedWatch, oil) | Treasury, FRED, Cboe, CME, EIA, Fed | read today; data <= 5 days old |
-| `release_consensus` | Investing, Reuters, Bloomberg, WSJ, MarketWatch, CNBC | read within 7 days |
+| `release_consensus` | Investing, Reuters, MarketWatch, CNBC | read within 7 days |
 | `news` | official sources, tier-2 outlets, Yahoo | read today; published <= 7 days ago; 2 outlets or 1 official per `claim_id` |
 
 The check also rejects a read time without a clock time (`observed_at` and `latest_filing_checked_at` need a time with a UTC offset), a URL that is not on the named source's own site, an unregistered source, a source not accepted for that category, and any date in the future. `ok` is true only if **every** entry is FRESH: refresh or delete the rest, and never report a number whose entry failed. Pass `SOURCES_CHECK.json` to every `size_trade.py` call. Never edit `sources.json` during a session; a maintainer adds a source and re-runs `run_checks.py`.
