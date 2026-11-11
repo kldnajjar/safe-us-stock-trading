@@ -3,31 +3,39 @@ name: safe-us-stock-trading
 description: Plan US stock, ETF and gold/silver trades for any investor on any broker. Asks how much money to trade and what to buy, then gives exact buy, sell and stop-loss prices sized to the user's own fees and risk level (short/medium/long, safe/balanced/aggressive), with news-driven market analysis, a boycott screen and a Shariah (halal/haram) screen on every idea, every number from fresh cited sources (shown in the output), the full reason for every NO BUY, and a simple plain-language output. Use when someone asks what stocks to buy or sell, for a market analysis, a trade plan, or gold/silver timing.
 ---
 
-# Safe US Stock Trading (v4.9)
+# Safe US Stock Trading (v5.0)
 
 Act as a market analyst with a CFO's discipline: protect capital, size every order against the user's real fees, and base every call on fresh, cited evidence. This is research support, not licensed financial, tax or religious advice. The user decides and places every trade. Never log into a broker app or place orders.
 
 **NO TRADE is always an acceptable answer. Never push the user to invest the whole amount.**
 
-**Three rules that always apply (v4.8, enforced in code):**
+> Money in this file is written as "1,000 USD" on purpose: the skill loader replaces a dollar sign followed by a digit with the user's words. The scripts print amounts with a dollar sign.
+
+**Five rules that always apply:**
 1. **Both screens run on every idea, every session**: the boycott screen (section 7) and the Shariah screen (section 7b). The user chooses *exclude* (default) or *flag only*; there is no "off".
    - **Exclude:** a name that fails is never planned; it appears as NO BUY with the reason and reference.
-   - **Flag only (v4.9):** every screened idea is sized and shown as an option, failing ones included, each labelled with its result and the reference behind it: "BOYCOTT: ON BOYCOTT LIST, listed by AFSC <link>" or "HALAL: NOT HALAL, AAOIFI SS-21, interest-bearing debt 41% > 30%, <link>". The user decides. The recommendation always goes to the clean option (or cash), never a flagged one. `size_trade.py` refuses `off` and refuses flag mode without a real result file.
+   - **Flag only :** every screened idea is sized and shown as an option, failing ones included, each labelled with its result and the reference behind it: "BOYCOTT: ON BOYCOTT LIST, listed by AFSC <link>" or "HALAL: NOT HALAL, AAOIFI SS-21, interest-bearing debt 41% > 30%, <link>". The user decides. The recommendation always goes to the clean option (or cash), never a flagged one. `size_trade.py` refuses `off` and refuses flag mode without a real result file.
 2. **Every number comes from a fresh, named, ranked source** recorded in the source ledger and passed by `sources_check.py` (section 8a). Stale, conflicting or unranked data is refreshed or dropped, never reported. Every output shows where each number came from and when.
 3. **Every NO BUY and WAIT says why**, every reason, in plain words, with what would fix it (section 12). Never write "no buy" without the reason.
-4. **Every output starts with WHAT TO DO NOW (v4.9)**: numbered steps the user can follow in the app (limit buy, stop after fill, sell orders), or, with no buy, what to do instead and the closest idea. `render_simple.py` and `render_dashboard.py` print it from the engine numbers.
-5. **Screen before you show (v4.9)**: only pass a ticker to the engine and the renderers once both screens have result files for it. A ticker you drop earlier (e.g. its top holdings are already on a boycott list) goes in `--skipped "TICKER|why"`, one line. Never show a candidate as "SCREEN NOT RUN".
+4. **Every output starts with WHAT TO DO NOW**: numbered steps the user can follow in the app (limit buy, stop after fill, sell orders), or, with no buy, what to do instead and the closest idea. `render_simple.py` and `render_dashboard.py` print it from the engine numbers.
+5. **Screen before you show **: only pass a ticker to the engine and the renderers once both screens have result files for it. A ticker you drop earlier (e.g. its top holdings are already on a boycott list) goes in `--skipped "TICKER|why"`, one line. Never show a candidate as "SCREEN NOT RUN".
 
-## Fast path (v4.9): result in about 5 minutes
+## The run, on one card (v5.0)
 
-Users wait for this. Keep the whole run lean:
-- **At most 2 candidates.** Pick them from the regime first (signals market state DOWN means gold/cash first; UP means a broad screened ETF or a large cap). Drop anything that obviously fails a screen or doubles an existing concentration before researching it, with a `--skipped` line.
-- **4–6 searches** for the regime (Fed, latest big release, the week's market move, the asset's news), run in parallel.
-- **Quotes and a year of prices in one browser call**: open nasdaq.com in the built-in browser, then use `fetch('https://api.nasdaq.com/api/quote/T/info?assetclass=etf|stocks')` for the live quote and `/historical?...&limit=300` for daily rows; take the second quote from stockanalysis.com. Ledger the quote right after reading it (15-minute limit).
-- **Screens in one pass**: the Who Profits list (all pages, one in-page fetch), the BDS targets page, AFSC company pages by slug, OHCHR's latest list, and the SEC filing index.
-- **Size with `--budget`** set to the amount the user gave (A1), so the order never exceeds it.
-- Render once, publish the dashboard once.
+Follow these eight steps in order. The numbered sections below are the reference for each step; read a section only when its step needs it.
 
+| # | Step | How | Section |
+|---|---|---|---|
+| 1 | Check the engine | `run_checks.py` (silent) | 0a |
+| 2 | Ask | one question at a time; platform and tax residency every session | 0b |
+| 3 | State | `portfolio_state.py` on what the app shows | 6a |
+| 4 | Market | 4–6 searches run together: Fed, latest big release, this week's move, the asset's news. Ledger each one. | 8, 9 |
+| 5 | Pick **at most 2 candidates** | market DOWN (signals) means gold or cash first; UP means a broad screened ETF or a large cap. Drop anything that doubles what the user already holds. Dropped names go in `--skipped`. | 11 |
+| 6 | Data, **one browser call** | run `scripts/browser_fetch.js` on a nasdaq.com tab with the candidates + the market fund, save the result as `DATA.json`, then `ingest.py --data DATA.json --ledger LEDGER.json --market FUND`. It writes the price files, ledgers the quote and history, and runs the signals. Add the second quote source by hand (0.5% cross-check). | 4, 8a, 8b |
+| 7 | Screen **both** candidates fully, then size | boycott (AFSC fund search first for ETFs, then Who Profits all pages in one in-page fetch, BDS, OHCHR, SEC) and Shariah; then `size_trade.py --budget AMOUNT`. Never show a ticker whose screens did not run. | 7, 7b, 6b |
+| 8 | Show | `render_simple.py` then `render_dashboard.py`, once each. Publish the dashboard. | 12 |
+
+Accuracy comes from the engine, not from more searching: quote under 15 minutes old from two sources, every number in the ledger, screens with evidence files. Speed comes from doing less: two candidates, one data call, no re-runs. Re-read the quote right before step 7 if more than 10 minutes passed.
 
 ## 0. Start of session
 
@@ -53,7 +61,8 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 - Ask **exactly one question per message**. With AskUserQuestion, put **one** question in the call, never a batch. Wait for the answer before asking the next.
 - Start each question with a short progress tag, e.g. **"Question 3 of 14"** for setup, or **"One more question"** later in the run. The total is an estimate; update it when a branch adds or removes questions.
 - Use a picker (AskUserQuestion options) when the answers are a short fixed list. Ask in plain text when the answer is a number, a ticker or a list the user types.
-- **Skip** any question the user has already answered, in this message or earlier in the session, and say which saved answer you used in a few words ("Using your Bank al Etihad fees from last time").
+- **Skip** a question only if the user answered it **in this session** (this message or earlier in this conversation). An answer from an earlier session, from memory, or inferred from context (location, language, a past chat) is **never used silently**: ask the question and offer the saved answer as the first picker option, marked "(last time)".
+- **Never infer** platform, account currency or tax residency. Where the user lives is not their tax residency, and one user can have several platforms. Always ask A5 and A6.
 - Follow-ups are their own question. If an answer opens a branch (picked a range, picked "Other", said they hold stocks), the next message asks only that follow-up.
 - Never ask for anything you can look up (prices, filings, news) or calculate (portfolio value, limits).
 - If the user says "skip", "not sure" or "I don't know", take the safe default listed for that question, say so in one line, and move on.
@@ -63,26 +72,29 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 
 | # | Question | Picker options / answer | Safe default if skipped |
 |---|---|---|---|
-| A1 | How much money do you want to trade with this time? | Under $1,000 · $1,000–$5,000 · $5,000–$25,000 · Over $25,000 (Other = type it) | none: required |
+| A1 | How much money do you want to trade with this time? | Under 1,000 USD · 1,000 USD–5,000 USD · 5,000 USD–25,000 USD · Over 25,000 USD (Other = type it) | none: required |
 | A1a | *(only if a range was picked)* What's the exact amount, in dollars? | typed number | none: required (pass it as `--budget`) |
 | A2 | What do you want to buy? | Find ideas for me · I have tickers in mind · A sector or theme · Review what I already hold | Find ideas |
 | A2a | *(tickers)* Which tickers? / *(theme)* Which sector or theme? | typed, or a theme picker: Tech/AI · Healthcare · Dividends/defensive · Gold/silver | none: required for that branch |
 | A3 | How long will you hold? | Short (days–8 weeks) · Medium (2–12 months) · Long (12+ months) | Medium |
 | A4 | How much risk? | Safe · Balanced · Aggressive (show the per-stock cap and planned loss per idea for each) | Safe |
+| A5 | Which platform is this trade on? (every session) | Bank al Etihad · Robinhood · Other (type its name), the last-used one first marked "(last time)" | none: required (no fee schedule means NO TRADE) |
+| A5r | *(Robinhood)* Which Robinhood account? | United States (`robinhood`) · United Kingdom (`robinhood-uk`) · Singapore (`robinhood-sg`) · Europe / other (stock tokens, not shares: not supported; answer A5a–A5b with its fees) | none: required; never assume the US one |
+| A5a | *(Other)* How does it charge? | Percent of order · Per share · Flat per order · Commission-free | none: required |
+| A5b | *(Other)* What are the numbers? Ask only the fields that model needs: rate, minimum, maximum (percent); per-share fee, minimum, max % of order (per share); fee per order (flat). Plus any minimum order size. | typed | none: required |
+| A6 | Which country are you tax-resident in? (every session) | the last answer first marked "(last time)" · Jordan · United States · Other (type it) | flag the tax checks (section 10) as Unavailable; never assume one |
 
-**Part B: the account (first session only; reuse the answers afterwards)**
+**Part B: the platform's details (ask once per platform; when the user picks a platform in A5 whose details were not given in this session, confirm them in one question: "Same as last time for Robinhood: USD account, stop orders yes?" Yes · Something changed)**
 
 | # | Question | Picker options / answer | Safe default if skipped |
 |---|---|---|---|
-| B1 | Which platform do you trade on? | the non-template profiles in `scripts/brokers.json` · Other | none: required (no fee schedule means NO TRADE) |
-| B1a | *(Other)* How does it charge? | Percent of order · Per share · Flat per order · Commission-free | none: required |
-| B1b | *(Other)* What are the numbers? Ask only the fields that model needs: rate, minimum, maximum (percent); per-share fee, minimum, max % of order (per share); fee per order (flat). Plus any minimum order size. | typed | none: required |
 | B2 | Which currency does the trading account hold? | USD · Other (type it) | USD (cross-currency plans stay WATCHLIST) |
 | B3 | Can your app place stop-loss orders on US stocks? | Yes · No, only limit orders · Not sure | Not sure (`--stop-orders unknown`) |
 | B4 | The boycott screen (companies complicit with Israel) always runs. How should it be applied? | Exclude (a listed company is never planned) · Flag only (every idea shown as an option, labelled with the list and link, you decide) | Exclude |
 | B5 | The Shariah (halal) screen always runs. How should it be applied? | Exclude · Flag only (shown labelled "not halal" with the methodology, failed ratio and reference) | Exclude |
 | B5a | Which Shariah methodology? | AAOIFI (default) · MSCI Islamic Index Series · MSCI Islamic M-Series · S&P Shariah · DJIM | AAOIFI |
-| B6 | Which country are you tax-resident in? | typed | flag the tax checks (section 10) as Unavailable |
+
+B4–B5a apply to every platform. In a later session, confirm them in one question ("Screens as last time: boycott flag, Shariah flag, AAOIFI?" Yes · Change) instead of reusing them silently.
 
 **Part C: the portfolio (every session; if you have last session's answers, ask once "Has anything changed since last time?" and only re-ask what changed)**
 
@@ -145,8 +157,8 @@ These limits are design defaults, not validated optimal allocations.
 
 ## 2. Platform and fees (`scripts/brokers.json`)
 
-- **Built-in profiles (v4.9):** `bank-al-etihad-jo` (0.5% per order, $0.50 min, $30 max, user-provided) and `robinhood` (commission-free US stocks/ETFs, verified 2026-11-09 against Robinhood's fee page; tiny SEC/FINRA fees on sells are covered by `--friction-bps`; uninvested cash may earn interest, so flag purification when the Shariah screen is on). US Robinhood accounts are for US residents.
-- **More than one platform:** ask once which account this trade is for (B1), build that account's state only (cash, holdings and orders as that app shows them), and size against it. Never mix cash or holdings across apps; mention holdings in the other app only for sector and concentration context the user gives.
+- **Built-in profiles:** `bank-al-etihad-jo` (0.5% per order, 0.50 USD min, 30 USD max, user-provided) and three Robinhood accounts the user chooses between (A5r), all commission-free on US stocks and ETFs and verified against Robinhood's own published fees: `robinhood` (United States), `robinhood-uk` (0.10% when converting GBP and USD, 0.30% late Friday) and `robinhood-sg` (Singapore). Small US regulatory fees on sells are covered by `--friction-bps`. Uninvested cash may earn interest: flag purification when the Shariah screen is on. Robinhood Europe sells stock tokens, not shares, and has no profile.
+- **More than one platform:** ask which account this trade is for (A5), build that account's state only (cash, holdings and orders as that app shows them), and size against it. Never mix cash or holdings across apps; mention holdings in the other app only for sector and concentration context the user gives.
 - Every fee is charged **per order** by the engine, from a broker profile (`--broker ID`) or explicit flags. There is no default fee schedule: without one, the engine returns NO TRADE.
 - Fee models:
 
@@ -282,7 +294,7 @@ python3 "$SKILL_DIR/scripts/size_trade.py" --asset stock|etf|metal --ticker TICK
 - **Asset type:** a ticker with company data in the ledger (earnings date, 10-Q/10-K, analyst consensus) can't be sized as `--asset metal` or `tbill`. Holdings and orders in the state must use `stock`, `etf`, `metal` or `tbill` exactly.
 - **Screen results are re-checked at trade time:** expiry is recomputed from each result's own date (the stored `expires_on` is not trusted), the boycott evidence must be for the same asset type and ISIN, and validity is counted from the later of `--as-of` and today.
 - **Plan files:** a plan is only used downstream (state, output, journal) if it is a genuine TRADE: no reasons and placeable. An edited verdict is refused. Pass each plan once.
-- **Prices under $1.00** are not supported (sub-penny ticks): NO TRADE.
+- **Prices under 1.00 USD** are not supported (sub-penny ticks): NO TRADE.
 - **One-cent grid:** every entry, tranche, stop, target and T-bill limit must be a whole number of cents (100.25, not 100.004). Off-grid prices are NO TRADE and are never rounded for you. Produce levels in cents.
 - **Unclassified sector money is worst case:** the portfolio's Unclassified exposure, and the new instrument's own Unclassified weight, are counted against every sector the buy touches (`(any other sector)` covers sectors not yet held).
 - **Stop distance:** as in section 5, checked against every entry.
@@ -502,13 +514,13 @@ Search fresh every run; never use remembered prices or rates. Show the observati
 | Tier | What | Examples |
 |---|---|---|
 | 1, official / primary | The regulator, statistics agency, central bank, exchange, fund issuer, or the company's own SEC filing | SEC EDGAR, Nasdaq, NYSE, Cboe, Federal Reserve, BLS, BEA, Treasury, FRED, CME FedWatch, EIA, WGC, iShares/SPDR/Vanguard |
-| 2, wire / major press | Fast and edited, but a report about the fact | Reuters, AP, Bloomberg, FT, WSJ, CNBC, BBC, MarketWatch |
+| 2, wire / major press | Fast and edited, but a report about the fact | Reuters, AP, CNBC, BBC, MarketWatch |
 | 3, data site | Convenient copies of tier-1 data | Yahoo Finance, Stooq, StockAnalysis, Investing.com, Morningstar |
 
 Rules (from practice; also how the open-source trader-skill pack treats SEC and news data):
 - **Filed numbers first.** Revenue, EPS, debt, cash, receivables and income come only from the 10-Q/10-K on SEC EDGAR (the `fundamentals` category accepts nothing else). Press releases and data sites are context.
 - **Check that the filing is the latest one.** Open the company's EDGAR filing list the same day (`latest_filing_checked_at`). SEC's XBRL "company facts" API can lag a new filing: if the newest 10-Q is later than the newest quarter in the facts, read the 10-Q itself.
-- **Headlines are leads, not facts.** Open the story or the filing before reporting it. If an 8-K and a headline disagree, the 8-K is what the company told the SEC. Never summarise a paywalled story you couldn't read: say it is paywalled.
+- **Headlines are leads, not facts.** Open the story or the filing before reporting it. If an 8-K and a headline disagree, the 8-K is what the company told the SEC. A story you couldn't open is not a source.
 - **Two sources for every price.** Read the exchange (Nasdaq/NYSE) plus a second quote site. If they differ by more than 0.5% the check returns CONFLICT; re-read both and trust the exchange.
 - **Two outlets, or one official source, for every market-moving claim** (the check warns otherwise).
 - **A scheduled release must be the latest.** Record each release's `next_release` date; once it has passed, the old number is STALE.
@@ -537,19 +549,13 @@ Rules (from practice; also how the open-source trader-skill pack treats SEC and 
 | 2 | BBC News: World | bbc.com/news/world | feeds.bbci.co.uk/news/world/rss.xml |
 | 3 | Reuters | reuters.com/markets, /world | none public; use WebSearch |
 | 4 | Associated Press | apnews.com/hub/business | none public; use WebSearch |
-| 5 | Bloomberg | bloomberg.com/markets | paywalled |
-| 6 | Financial Times | ft.com/markets | paywalled |
-| 7 | The Wall Street Journal | wsj.com/finance | paywalled |
-| 8 | CNBC | cnbc.com/markets | cnbc.com/id/100003114/device/rss/rss.html |
-| 9 | The Economist | economist.com/finance-and-economics | paywalled |
-| 10 | MarketWatch | marketwatch.com | feeds.marketwatch.com/marketwatch/topstories/ |
-| 11 | Barron's | barrons.com | paywalled |
-| 12 | Yahoo Finance | finance.yahoo.com/news | finance.yahoo.com/news/rssindex |
-| 13 | Al Jazeera: Economy | aljazeera.com/economy | aljazeera.com/xml/rss/all.xml |
-| 14 | The Guardian: Business | theguardian.com/business | theguardian.com/business/rss |
-| 15 | Nikkei Asia | asia.nikkei.com | paywalled |
+| 5 | CNBC | cnbc.com/markets | cnbc.com/id/100003114/device/rss/rss.html |
+| 6 | MarketWatch | marketwatch.com | feeds.marketwatch.com/marketwatch/topstories/ |
+| 7 | Yahoo Finance | finance.yahoo.com/news | finance.yahoo.com/news/rssindex |
+| 8 | Al Jazeera: Economy | aljazeera.com/economy | aljazeera.com/xml/rss/all.xml |
+| 9 | The Guardian: Business | theguardian.com/business | theguardian.com/business/rss |
 
-- For paywalled outlets, use the headline and public summary only. Never try to get around a paywall.
+- **Readable sources only.** A source that can't be read (the site blocks automated readers, sits behind a paywall or needs a login) is not used and not cited: drop it and use another source for that fact. Never work around a block. If a source in this file stops being readable, say so in the output and tell the maintainer so it is removed.
 - Prefer two independent outlets for any market-moving claim.
 
 ### 8a. Source ledger and freshness check (mandatory)
@@ -573,7 +579,7 @@ Re-adding the same page (same category, ticker and URL) replaces the old entry; 
 
 | Category | Accepted sources (tier) | Fresh means |
 |---|---|---|
-| `quote` | Nasdaq, NYSE, Cboe (1); Reuters, Bloomberg, CNBC, MarketWatch (2); Yahoo, Stooq, StockAnalysis (3) | read <= 15 min ago (+ stated delay, max 20); two sources within 0.5% |
+| `quote` | Nasdaq, NYSE, Cboe (1); Reuters, CNBC, MarketWatch (2); Yahoo, Stooq, StockAnalysis (3) | read <= 15 min ago (+ stated delay, max 20); two sources within 0.5% |
 | `price_history` (MAs, ATR, swings, 52-week) | Nasdaq, NYSE, MarketWatch, Yahoo, Stooq, StockAnalysis, Investing, Morningstar | read today; history includes the latest session (<= 4 days) |
 | `earnings_date` | SEC, Nasdaq, NYSE, Reuters, Yahoo, StockAnalysis, MarketWatch, Investing | read today; `event_date` recorded and not yet passed |
 | `fundamentals` | **SEC EDGAR only** | filed <= 135 days ago; EDGAR filing list re-checked within 24 h |
@@ -581,7 +587,7 @@ Re-adding the same page (same category, ticker and URL) replaces the old entry; 
 | `consensus` | StockAnalysis, Yahoo, MarketWatch, Investing, Morningstar, Nasdaq, Reuters, CNBC | read today |
 | `macro_release` (FOMC, CPI, jobs, PPI, GDP, PCE, WGC) | Fed, BLS, BEA, Treasury, EIA, WGC (official only) | read today; `next_release` not yet passed |
 | `market_series` (yields, DFII10, DTWEXBGS, VIX, FedWatch, oil) | Treasury, FRED, Cboe, CME, EIA, Fed | read today; data <= 5 days old |
-| `release_consensus` | Investing, Reuters, Bloomberg, WSJ, MarketWatch, CNBC | read within 7 days |
+| `release_consensus` | Investing, Reuters, MarketWatch, CNBC | read within 7 days |
 | `news` | official sources, tier-2 outlets, Yahoo | read today; published <= 7 days ago; 2 outlets or 1 official per `claim_id` |
 
 The check also rejects a read time without a clock time (`observed_at` and `latest_filing_checked_at` need a time with a UTC offset), a URL that is not on the named source's own site, an unregistered source, a source not accepted for that category, and any date in the future. `ok` is true only if **every** entry is FRESH: refresh or delete the rest, and never report a number whose entry failed. Pass `SOURCES_CHECK.json` to every `size_trade.py` call. Never edit `sources.json` during a session; a maintainer adds a source and re-runs `run_checks.py`.
@@ -672,7 +678,7 @@ A factor that can't be verified is **Unknown**, never 0.
 
 Flag each one; label it **Verified** only with a current source.
 - US dividend withholding for non-resident aliens: generally 30% unless a treaty rate applies. Check the user's country.
-- US estate tax for non-resident non-citizens: $60,000 is generally the filing threshold for US-situs assets. Verify current rules.
+- US estate tax for non-resident non-citizens: 60,000 USD is generally the filing threshold for US-situs assets. Verify current rules.
 - Fund domicile: compare US-domiciled ETFs with Irish-domiciled UCITS equivalents (withholding, estate exposure, availability on the user's platform, FX, fees).
 - FX cost if the account currency isn't USD.
 
@@ -697,14 +703,16 @@ Flag each one; label it **Verified** only with a current source.
 
 ## 12. Output
 
-### Order of the output (v4.9)
+### Order of the output (v5.0)
 
-1. **SCREENS**: one row per idea: boycott result + reference (which list, link, date checked), halal result + reference (methodology, the failed ratio or the structural reason, link).
-2. **YOUR OPTIONS**: every idea as a lettered option with its engine numbers and labels, plus KEEP CASH, and one RECOMMENDED letter (a clean option that passes the risk rules, else cash). In flag mode, flagged options are listed and marked "your decision".
-3. **WHAT TO DO NOW**: numbered app steps for the recommended option.
-4. Details per idea, then sources.
+Text and dashboard follow the same order, built by the renderers from the engine files (never by hand):
 
-`render_simple.py` and `render_dashboard.py` build 1–3 from the engine files; you never write them by hand.
+1. **Colour key.** 🟢 good / can win · 🟡 wait / your call · 🔴 stop / can lose. On the dashboard blue is plain info, and every colour also carries a sign (`+ ! x i`) so it reads without colour.
+2. **TODAY** (dashboard): one coloured answer: BUY X, YOUR CALL, or NO BUY TODAY. KEEP CASH.
+3. **DO THIS NOW**: numbered app steps for the recommended option.
+4. **YOUR CHOICES**: every idea as a lettered option with PAY / CAN LOSE / CAN WIN from the engine, its boycott and halal labels, plus KEEP CASH. One BEST PICK: a buy that is clean on both screens and passes the risk rules, else cash. In flag mode a failing name is marked YOUR CALL and is never the best pick.
+5. **CHECKS**: boycott and halal result per idea with the proof (which list and link; methodology and the failed ratio).
+6. **YOUR MONEY**, then the full numbers per idea, skipped names and sources.
 
 ### Simple (default): plain "caveman" style
 
@@ -720,21 +728,21 @@ python3 "$SKILL_DIR/scripts/render_simple.py" --plans PLAN1.json PLAN2.json [--s
 
 Pass a plan file for **every** ticker you screened (tickers dropped before screening go in `--skipped`), including the ones that failed a screen, so each NO BUY prints. Every NO BUY and WAIT prints every reason: a plain `WHY:` line, the facts behind it (which boycott list, which Shariah ratio, which source is stale), a `FIX:` line, and the engine's full text. A NO BUY also prints `ALSO NEEDED:` lines for what would still be missing once the blocking reasons are fixed (sources, earnings date, signals, a live price). Never shorten or drop a reason.
 
-Example (real engine output from the v4.8 tests: $10,000 account, balanced, medium hold, Bank al Etihad fees, AAOIFI and boycott screens in exclude mode, test fixtures for the company and sources):
+Example (real engine output from the v4.8 tests: 10,000 USD account, balanced, medium hold, Bank al Etihad fees, AAOIFI and boycott screens in exclude mode, test fixtures for the company and sources):
 
 ```
 RISK: BALANCED. HOLD: MEDIUM.
 NYSE: OPEN. CLOSES 16:00 NEW YORK TIME.
 
 BUY ABC
-  PRICE 100.00 (LIMIT)  SHARES 9  COST $904.50
-  STOP 90.00  PLANNED LOSS AT STOP $98.55
-  LOSS CAN BE MORE. IF PRICE JUMPS DOWN: $138.85
+  PRICE 100.00 (LIMIT)  SHARES 9  COST 904.50 USD
+  STOP 90.00  PLANNED LOSS AT STOP 98.55 USD
+  LOSS CAN BE MORE. IF PRICE JUMPS DOWN: 138.85 USD
   SELL 4 AT 120.00  SELL 5 AT 130.00
-  PROFIT IF BOTH HIT $219.85 (AFTER FEES)
+  PROFIT IF BOTH HIT 219.85 USD (AFTER FEES)
   AFTER FIRST SELL: KEEP STOP 90.00. NEVER LOWER. CAN RAISE TO 101.01 (REST NO LOSS).
   FEE SCHEDULE: USER-PROVIDED, NOT VERIFIED. CHECK FEES IN YOUR APP.
-  FEES: $9.90 IN AND OUT = 5.5% OF PROFIT AT FIRST TARGET
+  FEES: 9.90 USD IN AND OUT = 5.5% OF PROFIT AT FIRST TARGET
   EARNINGS: 2027-01-28 (84 DAYS).
   TREND: OK (SHORT AVERAGES NOT ALIGNED (MA3 > MA10 > MA21 FAILS): NO SHORT-TERM BREAKOUT ENTRY)
   HALAL: OK (SS-21)
@@ -786,21 +794,21 @@ Keep the safety lines even in the simplest output:
 
 ### Dashboard (default, after the simple text)
 
-Every run also produces one self-contained HTML page from the same engine files: portfolio and limits used, one card per idea (BUY / WAIT / NO BUY with the reason), holdings, sector exposure, events, notes and sources. It copies the engine's numbers and keeps every safety line; it never computes a level or a size.
+One self-contained HTML page from the same engine files, in simple words. It copies the engine's numbers and keeps every safety line; it never computes a level or a size.
 
 ```
 python3 "$SKILL_DIR/scripts/render_dashboard.py" --plans PLAN1.json PLAN2.json \
   --state ACTUAL.json [--projected PROJECTED.json] \
   --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE." \
-  [--note "NVDA: fails boycott screen (AFSC)"] [--source "Title|https://..."] \
+  [--skipped "XYZ|why dropped"] [--note "NVDA: on AFSC list"] [--source "Title|https://..."] \
   --title "Trade plan YYYY-MM-DD" --out dashboard.html
 ```
 
-- Pass every plan from this run, including NO TRADE and WATCHLIST ones, so the page shows why each idea was dropped.
-- Pass `--projected` when more than one idea was accepted; the sector chart then shows plans as reserved orders, never as holdings.
-- Use `--note` for holdings-review findings (a holding that now fails a screen, a missing stop) and `--source` for each cited source.
-- Publish the file as an artifact when the session can (otherwise send the file). Reuse the same file path within a session so the link updates; start a new one per session. It is a snapshot: levels are valid only for the quote time printed on each card.
-- The page loads nothing external and escapes all text, so news headlines or ticker strings can't inject markup.
+- Write `--market`, `--metals`, `--events` and every `--note` in short plain words (a 12-year-old should follow them). No jargon: say "price fell under its long average", not "below the 200-DMA".
+- Pass every screened plan, including NO TRADE and WATCHLIST ones. The full numbers for each idea sit in a fold at the bottom; only the best pick is open.
+- Pass `--projected` when more than one idea was accepted.
+- Publish the file as an artifact when the session can (otherwise send the file). Reuse the same file path within a session so the link updates. It is a snapshot: levels are valid only for the quote time shown.
+- The page loads nothing external and escapes all text.
 
 ### Detailed (only when asked)
 

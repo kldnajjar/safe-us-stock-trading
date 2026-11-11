@@ -1086,7 +1086,10 @@ def compute_price(a, fee, p):
                            f"(already ${a.ticker_exposure:,.2f})" if a.asset in COUNTED_ASSETS
                            else "metals allocation cap reached")
         if available < a.min_order:
-            reasons.append("cash floor and unfilled commitments leave less than the minimum order")
+            b = getattr(a, "budget", None)
+            reasons.append(f"the amount set for this trade (--budget ${b:,.2f}) is below the ${a.min_order:,.0f} minimum order"
+                           if b is not None and b < a.min_order and accounting["available_cash"] == round(b, 2)
+                           else "cash floor and unfilled commitments leave less than the minimum order")
 
     k = len(prices)
 

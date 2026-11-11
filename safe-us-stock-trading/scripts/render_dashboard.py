@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Per-run dashboard for the safe-us-stock-trading skill (v4.6).
+"""Per-run dashboard for the safe-us-stock-trading skill (v5.0).
+
+v5.0 layout, top to bottom: TODAY (one coloured answer) -> DO THIS NOW -> YOUR CHOICES -> CHECKS ->
+YOUR MONEY -> full numbers (folded). Colour always means the same thing, and every colour also has a
+sign, so it reads without colour: green + = good / can win, yellow ! = wait / your call,
+red x = stop / can lose, blue i = info.
 
 One self-contained HTML page (no scripts, no external files) built from the engine's JSON:
 portfolio snapshot, limits used, one card per idea (TRADE / WATCHLIST / NO TRADE), holdings,
@@ -26,49 +31,70 @@ from portfolio_state import plan_is_trade as _plan_is_trade  # noqa: E402
 SAFETY_FOOTER = "YOU DECIDE. YOU PLACE ORDER. NOT ADVICE."
 BOYCOTT_WORD = {"reviewed_no_match": ("Not on lists", "ok"), "flagged": ("Flagged", "warn"),
                 "excluded": ("On list", "bad"), "unverified": ("Not checked", "warn")}
-SHARIAH_WORD = {"PERMITTED": ("OK", "ok"), "REQUIRES_ACCEPTANCE": ("You must OK", "warn"),
+SHARIAH_WORD = {"PERMITTED": ("OK", "ok"), "REQUIRES_ACCEPTANCE": ("only if you accept", "warn"),
                 "EXCLUDED": ("No", "bad"), "UNVERIFIED": ("Not checked", "warn")}
 VERDICT = {"TRADE": ("BUY", "ok"), "WATCHLIST": ("WAIT", "warn"), "NO TRADE": ("NO BUY", "bad")}
 
 CSS = """
-:root{--bg:#f7f7f5;--card:#fff;--ink:#1d1d1b;--mute:#6b6b66;--line:#e3e2dc;--ok:#1f7a4d;--ok-bg:#e6f4ec;
---warn:#8a5a00;--warn-bg:#fdf1d8;--bad:#b42318;--bad-bg:#fde8e6;--bar:#3a6ea5;--bar-bg:#e8edf3}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141413;--card:#1e1e1c;--ink:#ecebe6;
---mute:#a3a29b;--line:#34332f;--ok:#5cc490;--ok-bg:#16301f;--warn:#e7b85a;--warn-bg:#352a12;--bad:#f2857a;
---bad-bg:#3a1a17;--bar:#7aa7d6;--bar-bg:#26303b}}
-:root[data-theme="dark"]{--bg:#141413;--card:#1e1e1c;--ink:#ecebe6;--mute:#a3a29b;--line:#34332f;--ok:#5cc490;
---ok-bg:#16301f;--warn:#e7b85a;--warn-bg:#352a12;--bad:#f2857a;--bad-bg:#3a1a17;--bar:#7aa7d6;--bar-bg:#26303b}
+:root{--bg:#f6f6f3;--card:#fff;--ink:#1b1b19;--mute:#66665f;--line:#e2e1da;
+--ok:#17693f;--ok-bg:#e2f3e9;--warn:#7d5200;--warn-bg:#fcefcf;--bad:#a81f14;--bad-bg:#fde5e2;
+--info:#1f5c99;--info-bg:#e4eef8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#131312;--card:#1d1d1b;--ink:#eceae4;
+--mute:#a5a49c;--line:#35342f;--ok:#62c896;--ok-bg:#153021;--warn:#e9bb5e;--warn-bg:#362b12;--bad:#f48a7f;
+--bad-bg:#3b1a17;--info:#84b4e3;--info-bg:#17283a}}
+:root[data-theme="dark"]{--bg:#131312;--card:#1d1d1b;--ink:#eceae4;--mute:#a5a49c;--line:#35342f;--ok:#62c896;
+--ok-bg:#153021;--warn:#e9bb5e;--warn-bg:#362b12;--bad:#f48a7f;--bad-bg:#3b1a17;--info:#84b4e3;--info-bg:#17283a}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
-font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:1080px;margin:0 auto;padding:24px 16px 48px}
-h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;
-color:var(--mute);margin:28px 0 10px}.sub{color:var(--mute);font-size:13px}
-.banner{border-radius:8px;padding:10px 14px;margin:14px 0;font-weight:600}
-.banner.ok{background:var(--ok-bg);color:var(--ok)}.banner ol{margin:6px 0 0 18px;font-weight:500}
-.banner.bad{background:var(--bad-bg);color:var(--bad)}.banner.warn{background:var(--warn-bg);color:var(--warn)}
-.ctx{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
-.ctx div,.tile,.card,.tbl{background:var(--card);border:1px solid var(--line);border-radius:10px}
-.ctx div{padding:10px 12px}.ctx b{display:block;font-size:12px;color:var(--mute);font-weight:600}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px}
-.tile{padding:12px 14px}.tile .k{font-size:12px;color:var(--mute)}.tile .v{font-size:22px;font-weight:650;
-font-variant-numeric:tabular-nums}.tile .s{font-size:12px;color:var(--mute)}
-.meter{height:6px;background:var(--bar-bg);border-radius:3px;margin-top:8px;overflow:hidden}
-.meter i{display:block;height:100%;background:var(--bar)}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
-.card{padding:14px 16px}.card h3{margin:0;font-size:18px;display:flex;align-items:center;gap:8px}
+font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 14px 48px}
+h1{font-size:20px;margin:0 0 2px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;
+color:var(--mute);margin:30px 0 10px}.sub{color:var(--mute);font-size:13px}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.info{color:var(--info)}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;font-size:12px}
+.chip{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap}
+.chip.ok,.badge.ok{background:var(--ok-bg)}.chip.warn,.badge.warn{background:var(--warn-bg)}
+.chip.bad,.badge.bad{background:var(--bad-bg)}.chip.info{background:var(--info-bg)}
 .badge{font-size:11px;font-weight:700;letter-spacing:.05em;padding:2px 8px;border-radius:99px}
-.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
-.badge.ok{background:var(--ok-bg)}.badge.warn{background:var(--warn-bg)}.badge.bad{background:var(--bad-bg)}
+.banner{border-radius:10px;padding:10px 14px;margin:12px 0;font-weight:600}
+.banner.bad{background:var(--bad-bg);color:var(--bad)}.banner.warn{background:var(--warn-bg);color:var(--warn)}
+.hero{border-radius:14px;padding:18px 20px;margin:14px 0 0;border-left:8px solid}
+.hero.ok{background:var(--ok-bg);border-color:var(--ok)}.hero.warn{background:var(--warn-bg);border-color:var(--warn)}
+.hero .k{font-size:12px;font-weight:700;letter-spacing:.08em}.hero .big{font-size:30px;font-weight:800;line-height:1.15}
+.hero .say{color:var(--ink);font-size:16px;margin-top:6px}
+.steps{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 16px 6px 8px;margin:0}
+.steps li{padding:8px 4px;border-top:1px solid var(--line);font-weight:600}.steps li:first-child{border-top:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.opt,.tile,.card,.tbl,.ctx div{background:var(--card);border:1px solid var(--line);border-radius:12px}
+.opt{padding:14px 16px;border-top:5px solid var(--line)}.opt.t-ok{border-top-color:var(--ok)}
+.opt.t-warn{border-top-color:var(--warn)}.opt.t-bad{border-top-color:var(--bad)}.opt.t-info{border-top-color:var(--info)}
+.opt h3{margin:0 0 2px;font-size:18px}.opt .tag{float:right}
+.nums{margin:12px 0 10px;border-radius:8px;background:var(--bg);padding:2px 10px}
+.nums>div{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-top:1px solid var(--line)}
+.nums>div:first-child{border-top:0}.nums .k{font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--mute)}
+.nums .v{font-size:18px;font-weight:750;font-variant-numeric:tabular-nums}
+.opt .chips{display:flex;flex-wrap:wrap;gap:6px}.opt .why{font-size:14px;margin-top:8px}
+.ctx{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.ctx div{padding:10px 12px;border-left:5px solid var(--info)}.ctx b{display:block;font-size:12px;color:var(--info)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.tile{padding:12px 14px}.tile .k{font-size:12px;font-weight:700;color:var(--mute)}.tile .v{font-size:22px;font-weight:750;
+font-variant-numeric:tabular-nums}.tile .s{font-size:12px;color:var(--mute)}
+.meter{height:8px;background:var(--line);border-radius:4px;margin-top:8px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--info)}.meter i.ok{background:var(--ok)}
+.meter i.warn{background:var(--warn)}.meter i.bad{background:var(--bad)}
+.card{padding:14px 16px}.card h3{margin:0;font-size:18px;display:flex;align-items:center;gap:8px}
 dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:12px 0;font-size:14px}
-dt{color:var(--mute)}dd{margin:0;font-variant-numeric:tabular-nums;text-align:right}
+dt{color:var(--mute)}dd{margin:0;font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
 .lines{list-style:none;padding:0;margin:10px 0 0;font-size:13px}.lines li{padding:3px 0;border-top:1px solid var(--line)}
 .reason{font-size:14px;margin-top:8px}.tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
-th:first-child,td:first-child{text-align:left}th{font-size:12px;color:var(--mute);font-weight:600}
+th:first-child,td:first-child{text-align:left}th{font-size:12px;color:var(--mute);font-weight:700}
+table.chk td,table.chk th{text-align:left;vertical-align:top}table.chk td.ref{font-size:13px;color:var(--mute);word-break:break-word}
 .secrow{display:grid;grid-template-columns:140px 1fr 110px;gap:10px;align-items:center;font-size:14px;margin:6px 0}
 .secrow .meter{margin:0}.secrow span:last-child{text-align:right;font-variant-numeric:tabular-nums}
-.foot{margin-top:28px;font-weight:700;text-align:center}.src a{color:var(--bar)}ul.src{padding-left:18px}
-@media (max-width:520px){.secrow{grid-template-columns:90px 1fr 90px}}
+details{margin:10px 0}summary{cursor:pointer;font-weight:700;padding:8px 0}details .card{margin-top:6px}
+a{color:var(--info)}ul.src{padding-left:18px;font-size:14px}
+.foot{margin-top:28px;font-weight:800;text-align:center}
+@media (max-width:520px){.secrow{grid-template-columns:90px 1fr 90px}.hero .big{font-size:24px}}
 """
 
 
@@ -84,7 +110,10 @@ def money(x):
     """Numbers as $1,234.56; engine status strings (e.g. UNQUANTIFIED, BREACHED: ...) shown as-is."""
     if x is None:
         return "n/a"
-    return f"${x:,.2f}" if _num(x) else str(x).split(":")[0]
+    if not _num(x):
+        word = str(x).split(":")[0]
+        return {"UNQUANTIFIED": "NO STOP SET", "BREACHED": "PAST ITS STOP"}.get(word, word)
+    return f"-${-x:,.2f}" if x < 0 else f"${x:,.2f}"
 
 
 def px(x):
@@ -101,13 +130,141 @@ def get(d, *path):
     return d
 
 
-def meter(used, cap):
-    """Bar width only. Labels always show the engine's own figures."""
+def meter(used, cap, tone=False):
+    """Bar width only. Labels always show the engine's own figures. tone=True colours the bar by how full
+    it is: green under 60%, yellow under 90%, red above."""
     try:
         w = 0 if not cap or cap <= 0 else max(0.0, min(100.0, used / cap * 100))
     except TypeError:
         w = 0
-    return f'<div class="meter"><i style="width:{w:.1f}%"></i></div>'
+    cls = ("ok" if w < 60 else "warn" if w < 90 else "bad") if tone else ""
+    return f'<div class="meter"><i class="{cls}" style="width:{w:.1f}%"></i></div>'
+
+
+SIGN = {"ok": "+", "warn": "!", "bad": "x", "info": "i"}
+
+
+def chip(text, cls):
+    """Coloured label that also carries a sign, so it reads without colour."""
+    return f'<span class="chip {cls}">{SIGN.get(cls, "")} {e(text)}</span>'
+
+
+def tone(label):
+    if label in ("NOT ON LISTS", "HALAL"):
+        return "ok"
+    return "bad" if label in ("ON BOYCOTT LIST", "NOT HALAL") else "warn"
+
+
+def linkify(text):
+    """Escaped text; https links become clickable. Nothing else is trusted."""
+    out = []
+    for tok in str(text or "").split(" "):
+        if tok.startswith("https://"):
+            u = tok.rstrip(".,;)")
+            out.append(f'<a href="{e(u)}" rel="noopener noreferrer">link</a>{e(tok[len(u):])}')
+        else:
+            out.append(e(tok))
+    return " ".join(out)
+
+
+def best_pick(plans):
+    """Same rule as the text output (render_simple.recommended_plan): a clean price trade, else None (cash)."""
+    return _rs.recommended_plan(plans)
+
+
+def _chips(d):
+    bl, _ = _rs.boycott_ref(d.get("boycott"))
+    hl, _ = _rs.halal_ref(d.get("shariah"))
+    return (chip(bl if "BOYCOTT" in bl else f"BOYCOTT: {bl}", tone(bl))
+            + chip(hl if "HALAL" in hl else f"HALAL: {hl}", tone(hl)))
+
+
+def _buy_say(d):
+    tr = d.get("tranches") or [{}]
+    if len(tr) > 1:
+        return (f'{e(d.get("shares"))} shares in {len(tr)} steps: '
+                + ", ".join(f'{e(x.get("shares"))} at {px(x.get("price"))}' for x in tr))
+    return f'{e(d.get("shares"))} shares at {px(tr[0].get("price"))} or lower'
+
+
+def _nums(rows):
+    return '<div class="nums">' + "".join(
+        f'<div><div class="k">{e(k)}</div><div class="v {c}">{e(v)}</div></div>' for k, v, c in rows) + "</div>"
+
+
+def hero(plans):
+    d = best_pick(plans)
+    if d is not None:
+        t = (d.get("ticker") or "?").upper()
+        cost = (d.get("total_order_value") or 0) + (d.get("total_buy_fees") or 0)
+        rl, ra = _rs.plan_risk(d)
+        at = " (at your review price, not an auto sell)" if d.get("horizon") == "long" else ""
+        return (f'<div class="hero ok"><div class="k ok">TODAY</div><div class="big ok">BUY {e(t)}</div>'
+                f'<div class="say">{_buy_say(d)}. Pay {money(cost)}. '
+                f'<b class="bad">Can lose {money(ra)}</b>{at}. '
+                f'<b class="ok">Can win {money(_rs.plan_profit(d))}</b>. Not on boycott lists. '
+                + ("Halal only if you accept it (see CHECKS)." if _rs.halal_ref(d.get("shariah"))[0] != "HALAL" else "Halal.")
+                + "</div></div>")
+    yours = [x for x in plans if _rs.plan_kind(x) in ("buy", "park")]
+    if yours:
+        names = ", ".join((x.get("ticker") or "?").upper() for x in yours)
+        return (f'<div class="hero warn"><div class="k warn">TODAY</div><div class="big warn">YOUR CALL: {e(names)}</div>'
+                '<div class="say">These fit your money rules, but a check failed, was not run, or the fund pays interest. '
+                'Look at CHECKS below. Keeping cash is also fine.</div></div>')
+    return ('<div class="hero warn"><div class="k warn">TODAY</div><div class="big warn">NO BUY TODAY. KEEP CASH.</div>'
+            '<div class="say">Nothing passed today. Keeping cash is a good result.</div></div>')
+
+
+def option_cards(plans):
+    """One card per option, in the same order and with the same letters as the text output."""
+    rows, rec = _rs.option_rows(plans)
+    out = []
+    for L, _text, _labels, _ok, _dot, d in rows:
+        if d is None:
+            cls = "ok" if rec == L else "info"
+            out.append(f'<div class="opt t-{cls}"><span class="tag">{chip("BEST PICK" if rec == L else "SAFE", cls)}</span>'
+                       f'<h3>{L}. KEEP CASH</h3><div class="sub">Do nothing today</div>'
+                       + _nums([("PAY", "$0.00", ""), ("CAN LOSE", "$0.00", ""), ("CAN WIN", "$0.00", "")]) + "</div>")
+            continue
+        t, kind = (d.get("ticker") or d.get("asset") or "?").upper(), _rs.plan_kind(d)
+        if kind == "buy":
+            clean = _rs.is_clean(d)
+            cls = "ok" if clean else "warn"
+            tag = chip("BEST PICK", "ok") if rec == L else (chip("OK", "ok") if clean else chip("YOUR CALL", "warn"))
+            cost = (d.get("total_order_value") or 0) + (d.get("total_buy_fees") or 0)
+            _rl, ra = _rs.plan_risk(d)
+            lose = "CAN LOSE (AT REVIEW PRICE)" if d.get("horizon") == "long" else "CAN LOSE"
+            out.append(f'<div class="opt t-{cls}"><span class="tag">{tag}</span><h3>{L}. BUY {e(t)}</h3>'
+                       f'<div class="sub">{_buy_say(d)}</div>'
+                       + _nums([("PAY", money(cost), ""), (lose, money(ra), "bad"),
+                                ("CAN WIN", money(_rs.plan_profit(d)), "ok")])
+                       + f'<div class="chips">{_chips(d)}</div>'
+                       + ('' if clean else '<div class="why warn">Failed a check. Shown because you chose FLAG. You decide.</div>')
+                       + '</div>')
+        elif kind == "park":
+            cost = (d.get("order_value") or 0) + (d.get("buy_fee") or 0)
+            out.append(f'<div class="opt t-warn"><span class="tag">{chip("YOUR CALL", "warn")}</span>'
+                       f'<h3>{L}. PARK CASH IN {e(t)}</h3><div class="sub">{e(d.get("shares"))} shares. Pays interest. Not a price trade.</div>'
+                       + _nums([("PAY", money(cost), ""), ("MAY EARN (GUESS)", money(d.get("expected_net_return")), "")])
+                       + f'<div class="chips">{_chips(d)}</div></div>')
+        else:
+            why, fix = _rs.explain((d.get("reasons") or [""])[0])
+            cls = "warn" if kind == "wait" else "bad"
+            out.append(f'<div class="opt t-{cls}"><span class="tag">{chip("WAIT" if kind == "wait" else "NO BUY", cls)}</span>'
+                       f'<h3>{L}. {e(t)}</h3><div class="why {cls}"><b>Why:</b> {e(why or (d.get("reasons") or ["?"])[0])}</div>'
+                       + (f'<div class="why"><b>Fix:</b> {e(fix)}</div>' if fix else '')
+                       + f'<div class="chips" style="margin-top:8px">{_chips(d)}</div></div>')
+    return '<div class="grid">' + "".join(out) + "</div>"
+
+
+def checks_table(plans):
+    rows = _rs.screen_rows(plans)
+    if not rows:
+        return ""
+    body = "".join(f'<tr><td><b>{e(t)}</b></td><td>{chip(bl, tone(bl))}</td><td class="ref">{linkify(br)}</td>'
+                   f'<td>{chip(hl, tone(hl))}</td><td class="ref">{linkify(hr)}</td></tr>' for t, bl, br, hl, hr in rows)
+    return ('<h2>Checks: boycott and halal</h2><div class="tbl"><table class="chk"><thead><tr><th>What</th><th>Boycott</th>'
+            '<th>Proof</th><th>Halal</th><th>Proof</th></tr></thead><tbody>' + body + "</tbody></table></div>")
 
 
 def screen_lines(d):
@@ -277,11 +434,11 @@ def tiles(plans, state):
     lim, cash = first.get("limits") or {}, first.get("cash_accounting") or {}
     out = []
     if a.get("portfolio_value") is not None:
-        out.append(("Portfolio value", money(a["portfolio_value"]),
+        out.append(("All your money here", money(a["portfolio_value"]),
                     f"cash {money(a.get('cash'))} · holdings {money(a.get('holdings_value'))}", None))
     if cash:
-        out.append(("Cash free to use", money(cash.get("available_cash")),
-                    f"floor kept {money(cash.get('cash_floor'))} · on order {money(cash.get('unfilled_commitments'))}",
+        out.append(("Cash you can use now", money(cash.get("available_cash")),
+                    f"safety cash kept {money(cash.get('cash_floor'))} · on order {money(cash.get('unfilled_commitments'))}",
                     None))
     used = a.get("executable_stop_downside")
     unknown = len(a.get("unquantified") or []) + len(a.get("breached") or [])
@@ -289,18 +446,19 @@ def tiles(plans, state):
         sub = f"room left {money(lim['open_risk_room'])} (before new buys)"
         if unknown:
             sub = f"+ {unknown} holding(s) with NO STOP: real risk unknown · " + sub
-        out.append(("Open risk at stops", money(used), sub, (used, used + lim["open_risk_room"])))
+        out.append(("Money at risk now", money(used) + (" + unknown" if unknown else ""), sub,
+                    (used, used + lim["open_risk_room"])))
     if lim.get("risk_budget_per_idea") is not None:
-        out.append(("Loss budget per idea", money(lim["risk_budget_per_idea"]),
+        out.append(("Loss limit per idea", money(lim["risk_budget_per_idea"]),
                     f"max per stock {money(lim.get('position_cap_total'))} · stop ≤ {e(lim.get('max_stop_distance_pct'))}%",
                     None))
     if lim.get("max_positions") is not None:
         n = lim.get("open_positions") or 0
-        out.append(("Stock + ETF positions", f"{n} / {lim['max_positions']}", "", (n, lim["max_positions"])))
+        out.append(("Things you hold", f"{n} of {lim['max_positions']} allowed", "", (n, lim["max_positions"])))
     h = ""
     for k, v, s, m in out:
         h += (f'<div class="tile"><div class="k">{e(k)}</div><div class="v">{e(v)}</div>'
-              f'<div class="s">{e(s)}</div>{meter(*m) if m else ""}</div>')
+              f'<div class="s">{e(s)}</div>{meter(*m, tone=True) if m else ""}</div>')
     return f'<div class="tiles">{h}</div>' if h else ""
 
 
@@ -314,11 +472,15 @@ def holdings_table(state):
     for r in rows:
         t = r.get("ticker")
         flag = ' <span class="badge bad">CHECK</span>' if t in bad or not _num(r.get("downside")) else ""
-        body += (f"<tr><td>{e(t)}{flag}</td><td>{e(r.get('asset'))}</td><td>{money(r.get('market_value'))}</td>"
-                 f"<td>{money(r.get('unrealized_pnl'))}</td><td>{money(r.get('downside'))}</td>"
+        pnl = r.get("unrealized_pnl")
+        pc = ("ok" if pnl > 0 else "bad" if pnl < 0 else "") if _num(pnl) else ""
+        dc = "bad" if not _num(r.get("downside")) else ""
+        body += (f"<tr><td><b>{e(t)}</b>{flag}</td><td>{money(r.get('market_value'))}</td>"
+                 f"<td class=\"{pc}\">{'+' if _num(pnl) and pnl > 0 else ''}{money(pnl)}</td>"
+                 f"<td class=\"{dc}\">{money(r.get('downside'))}</td>"
                  f"<td>{e(r.get('downside_type'))}</td></tr>")
-    return ('<div class="tbl"><table><thead><tr><th>Ticker</th><th>Type</th><th>Value</th><th>Gain/loss</th>'
-            f'<th>Loss at level</th><th>Level</th></tr></thead><tbody>{body}</tbody></table></div>')
+    return ('<div class="tbl"><table><thead><tr><th>You hold</th><th>Worth now</th><th>Up / down</th>'
+            f'<th>Can lose (at your stop)</th><th>Stop type</th></tr></thead><tbody>{body}</tbody></table></div>')
 
 
 def sectors(state, projected):
@@ -329,53 +491,53 @@ def sectors(state, projected):
     top = max(src.values()) or 1
     rows = "".join(f'<div class="secrow"><span>{e(k)}</span>{meter(v, top)}<span>{money(v)}</span></div>'
                    for k, v in sorted(src.items(), key=lambda kv: -kv[1]))
-    return f'<h2>Sector exposure — {e(label)}</h2>{rows}'
+    return f'<h2>Where your money sits — {e(label)}</h2>{rows}'
 
 
 def render(plans, state=None, projected=None, market="", metals="", events="", notes=(), sources=(),
            title="Trade plan", skipped=()):
-    # v4.9: never-researched plans (screens not run) are listed once under Skipped, not as red cards
-    skipped = list(skipped) + [f"{(x.get('ticker') or '?').upper()}|not researched (screens not run), not a candidate"
+    # never-researched plans (screens not run) are listed once under Skipped, not as red cards
+    skipped = list(skipped) + [f"{(x.get('ticker') or '?').upper()}|not researched (checks not run), not a candidate"
                                for x in plans if _rs.never_researched(x)]
     plans = [x for x in plans if not _rs.never_researched(x)]
+    kinds = {"buy": 0, "park": 1, "wait": 2, "no": 3}
+    plans = sorted(plans, key=lambda x: (kinds[_rs.plan_kind(x)], not _rs.is_clean(x)))
     first = next((p for p in plans if p.get("profile")), {})
     asof = next((get(p, "quote", "time") for p in plans if get(p, "quote", "time")), "")
     p = [f'<h1>{e(title)}</h1><div class="sub">Risk {e(str(first.get("profile") or "n/a").upper())} · '
-         f'hold {e(str(first.get("horizon") or "n/a").upper())} · broker {e(first.get("broker") or "n/a")}'
-         + (f" · first quote {e(asof)}" if asof else "") + "</div>"]
+         f'hold {e(str(first.get("horizon") or "n/a").upper())} · app {e(first.get("broker") or "n/a")}'
+         + (f" · price seen {e(asof)}" if asof else "") + "</div>",
+         '<div class="legend">' + chip("GREEN = GOOD / CAN WIN", "ok") + chip("YELLOW = WAIT / YOUR CALL", "warn")
+         + chip("RED = STOP / CAN LOSE", "bad") + chip("BLUE = INFO", "info") + "</div>"]
     if (state or {}).get("reconciliation_required"):
-        p.append('<div class="banner bad">A holding is past its stop or review level. No new trades until '
+        p.append('<div class="banner bad">x A thing you hold is past its stop. No new trades until '
                  'you fix it in the app.</div>')
     mc = next((x.get("market_clock") for x in plans if x.get("market_clock")), None)
     if mc and not mc.get("open"):
-        p.append(f'<div class="banner warn">NYSE closed ({e(mc.get("reason"))}). Next open '
-                 f'{e(mc.get("next_open_new_york", "?"))} New York time. Plans are conditional.</div>')
-    rows = _rs.screen_rows(plans)
-    if rows:
-        cls = lambda lab: "ok" if lab in ("NOT ON LISTS", "HALAL") else ("bad" if lab in ("ON BOYCOTT LIST", "NOT HALAL") else "warn")
-        p.append("<h2>Screens (every idea, with references)</h2><table><tr><th>Ticker</th><th>Boycott</th>"
-                 "<th>Reference</th><th>Halal</th><th>Reference</th></tr>" + "".join(
-                     f'<tr><td><b>{e(t)}</b></td><td class="{cls(bl)}">{e(bl)}</td><td>{e(br)}</td>'
-                     f'<td class="{cls(hl)}">{e(hl)}</td><td>{e(hr)}</td></tr>' for t, bl, br, hl, hr in rows) + "</table>")
-    opts, rec = _rs.option_rows(plans)
-    p.append("<h2>Your options</h2><ol type=\"A\">" + "".join(
-        f"<li>{'<b>' if L == rec else ''}{e(text)}{' (recommended)</b>' if L == rec else ''}"
-        + (f' <span class="sub">[{e(lab)}]</span>' if lab else "") + "</li>" for L, text, lab, _ in opts) + "</ol>")
+        p.append(f'<div class="banner warn">! NYSE closed ({e(mc.get("reason"))}). US market opens '
+                 f'{e(mc.get("next_open_new_york", "?"))} New York time. Run again then.</div>')
+    pick = best_pick(plans)
+    p.append(hero(plans))
     steps = [ln.strip() for ln in _rs.action_lines(plans, events)[1:] if ln.strip()]
-    p.append('<div class="banner ok"><b>What to do now</b><ol>'
-             + "".join(f"<li>{e(ln.split('. ', 1)[1] if '. ' in ln else ln)}</li>" for ln in steps) + "</ol></div>")
-    if not any(x.get("verdict") == "TRADE" and _plan_is_trade(x) for x in plans):
-        p.append('<div class="banner warn">NO BUY TODAY. CASH OK.</div>')
-    ctx = [(k, v) for k, v in (("Market", market), ("Gold / silver", metals), ("Watch", events)) if v]
+    p.append('<h2>Do this now</h2><ol class="steps">'
+             + "".join(f"<li>{e(ln.split('. ', 1)[1] if '. ' in ln else ln)}</li>" for ln in steps) + "</ol>")
+    p.append("<h2>Your choices</h2>" + option_cards(plans))
+    p.append(checks_table(plans))
+    ctx = [(k, v) for k, v in (("Market", market), ("Gold / silver", metals), ("Watch these days", events)) if v]
     if ctx:
-        p.append('<div class="ctx">' + "".join(f"<div><b>{e(k)}</b>{e(v)}</div>" for k, v in ctx) + "</div>")
-    p.append(tiles(plans, state))
-    order = {"TRADE": 0, "WATCHLIST": 1}
-    p.append("<h2>Ideas</h2><div class=\"cards\">"
-             + "".join(card(x) for x in sorted(plans, key=lambda x: order.get(x.get("verdict"), 2))) + "</div>")
+        p.append('<h2>What is going on</h2><div class="ctx">'
+                 + "".join(f"<div><b>i {e(k)}</b>{e(v)}</div>" for k, v in ctx) + "</div>")
+    t = tiles(plans, state)
+    if t or state:
+        p.append("<h2>Your money</h2>" + t)
     if state:
-        p.append("<h2>Holdings</h2>" + holdings_table(state))
+        p.append('<div style="margin-top:10px">' + holdings_table(state) + "</div>")
         p.append(sectors(state, projected))
+    if plans:
+        p.append("<h2>All the numbers</h2>" + "".join(
+            f'<details{" open" if x is pick else ""}>'
+            f'<summary>{e((x.get("ticker") or x.get("asset") or "?").upper())}: full plan and safety notes</summary>'
+            f'{card(x)}</details>' for x in plans))
     if skipped:
         p.append("<h2>Skipped</h2><ul>" + "".join(
             f"<li><b>{e(x.partition('|')[0].strip().upper())}</b>: {e(x.partition('|')[2].strip() or 'not a candidate')}</li>"
@@ -397,7 +559,8 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
         if u.startswith("https://") or u.startswith("http://"):
             links.append(f'<li><a href="{e(u)}" rel="noopener noreferrer">{e(t or u)}</a></li>')
     if links:
-        p.append('<h2>Sources</h2><ul class="src">' + "".join(links) + "</ul>")
+        p.append(f'<details><summary>Where the numbers came from ({len(links)})</summary><ul class="src">'
+                 + "".join(links) + "</ul></details>")
     p.append(f'<div class="foot">{SAFETY_FOOTER}</div>')
     return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'

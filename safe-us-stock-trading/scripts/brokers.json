@@ -34,6 +34,31 @@
       "verified_source": "https://robinhood.com/us/en/support/articles/trading-fees-on-robinhood",
       "verified_on": "2026-11-09"
     },
+    "robinhood-uk": {
+      "name": "Robinhood UK, US stocks and ETFs",
+      "fee": {"model": "zero"},
+      "fx_pct": 0.001,
+      "fx_note": "0.10% when converting between GBP and USD (0.30% Fridays 17:00-21:00 New York time). Charged only on conversion: tell the skill which currency your buying power is held in (question B2).",
+      "min_order": 1.0,
+      "currency": "USD",
+      "regulatory_fees_on_sells": "US regulatory fees on sells (cents on a typical order); covered by --friction-bps",
+      "order_types": "confirm limit and stop orders per ticker in the app",
+      "source": "verified",
+      "verified_source": "https://robinhood.com/gb/en/price",
+      "verified_on": "2026-11-11"
+    },
+    "robinhood-sg": {
+      "name": "Robinhood Singapore, US stocks and ETFs",
+      "fee": {"model": "zero"},
+      "min_order": 1.0,
+      "currency": "USD",
+      "fx_note": "Currency-conversion cost is not in the published schedule read for this profile: give it as --fx-pct if your buying power is not in USD.",
+      "regulatory_fees_on_sells": "US regulatory trading fees passed through on sells; covered by --friction-bps",
+      "order_types": "confirm limit and stop orders per ticker in the app",
+      "source": "verified",
+      "verified_source": "https://cdn.robinhood.com/assets/robinhood/legal/rhsg_fee_schedule.pdf",
+      "verified_on": "2026-11-11"
+    },
     "template-percent": {
       "name": "TEMPLATE: percent of order value",
       "fee": {"model": "percent", "rate": null, "min": null, "max": null},

@@ -198,6 +198,7 @@ EXPLAIN = [
     ("open-risk limit", "TOTAL RISK ON OPEN POSITIONS IS ALREADY AT YOUR LIMIT.", "WAIT, OR TIGHTEN OTHER STOPS."),
     ("sector cap", "TOO MUCH MONEY IN THIS SECTOR ALREADY.", "PICK ANOTHER SECTOR."),
     ("position cap", "YOU ALREADY HOLD AS MUCH OF THIS AS YOUR RISK LEVEL ALLOWS.", "NONE. ENOUGH OF IT."),
+    ("the amount set for this trade", "THE AMOUNT YOU SET IS BELOW YOUR APP'S SMALLEST ORDER.", "SET A BIGGER AMOUNT."),
     ("cash floor", "NOT ENOUGH CASH AFTER THE SAFETY CASH AND OPEN ORDERS.", "ADD CASH OR WAIT FOR FILLS."),
     ("no whole-share quantity", "NOT EVEN 1 SHARE FITS YOUR LIMITS AND FEES.", "SKIP, OR USE A CHEAPER FUND."),
     ("fees and spread exceed", "FEES EAT ALL THE INCOME.", "KEEP IT AS CASH."),
@@ -450,61 +451,118 @@ def screen_rows(plans):
     return rows
 
 
+GREEN, YELLOW, RED = "\U0001F7E2", "\U0001F7E1", "\U0001F534"
+
+
+def mark(*labels):
+    """v5.0: one coloured dot for a line. Red = on a list / not halal, yellow = your call, green = good."""
+    if any(l in ("ON BOYCOTT LIST", "NOT HALAL") for l in labels):
+        return RED
+    return GREEN if all(l in ("NOT ON LISTS", "HALAL") for l in labels) else YELLOW
+
+
 def screen_table_lines(plans):
     rows = screen_rows(plans)
     if not rows:
         return []
     out = ["SCREENS (EVERY IDEA, WITH REFERENCES):"]
     for t, bl, br, hl, hr in rows:
-        out.append(f"  {t}: BOYCOTT {bl} | HALAL {hl}")
+        out.append(f"  {mark(bl, hl)} {t}: BOYCOTT {bl} | HALAL {hl}")
         out.append(f"    BOYCOTT REF: {br}")
         out.append(f"    HALAL REF: {hr}")
     return out + [""]
 
 
+def plan_kind(d):
+    """buy = a sized price trade, park = a T-bill cash-parking trade, wait = watchlist, no = no trade."""
+    if d.get("verdict") == "TRADE" and plan_is_trade(d):
+        return "park" if d.get("asset") == "tbill" else "buy"
+    return "wait" if d.get("verdict") == "WATCHLIST" else "no"
+
+
+def buy_words(d):
+    """'19 GLDM AT 78.00' or, for tranches, '19 MUL IN 3 STEPS FROM 78.00 DOWN TO 74.00'. Engine numbers only."""
+    t, tr = (d.get("ticker") or "?").upper(), d.get("tranches") or [{}]
+    if len(tr) > 1:
+        return f"{d.get('shares')} {t} IN {len(tr)} STEPS FROM {px(tr[0].get('price', 0))} DOWN TO {px(tr[-1].get('price', 0))}"
+    return f"{d.get('shares')} {t} AT {px(tr[0].get('price', 0))}"
+
+
+def plan_risk(d):
+    """(label, amount): the planned loss at the hard stop, or at the review level for long-term ideas."""
+    dn = d.get("downside") or {}
+    if d.get("horizon") == "long":
+        return "RISK AT REVIEW LEVEL", dn.get("long_term_review_level_downside")
+    return "RISK", dn.get("executable_stop_downside")
+
+
+def plan_profit(d):
+    pe = d.get("partial_exit_plan") or {}
+    return pe.get("combined_net_profit") if pe.get("feasible") else d.get("net_profit_full_exit_t1")
+
+
 def option_rows(plans):
-    """v4.9: every idea as a lettered option, plus KEEP CASH. Returns (rows, recommended_letter)."""
+    """Every idea as a lettered option, plus KEEP CASH. Returns (rows, recommended_letter).
+    Row = (letter, text, labels, can_be_placed, dot, plan). Only a clean price trade is ever recommended;
+    a flagged trade, a T-bill fund, a WAIT and a NO are options the user can see, never the pick."""
     rows, rec = [], None
-    trades = [d for d in plans if d.get("verdict") == "TRADE" and plan_is_trade(d) and d.get("asset") != "tbill"]
-    others = [d for d in plans if d not in trades]
-    letters = iter("ABCDEFGHIJ")
-    for d in sorted(trades, key=lambda x: not is_clean(x)) + others:
-        L, t = next(letters), (d.get("ticker") or "?").upper()
+    order = {"buy": 0, "park": 1, "wait": 2, "no": 3}
+    ranked = sorted(plans, key=lambda d: (order[plan_kind(d)], not is_clean(d)))
+    letters = iter("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    for d in ranked:
+        L, t, kind = next(letters), (d.get("ticker") or "?").upper(), plan_kind(d)
         bl, _ = boycott_ref(d.get("boycott"))
         hl, _ = halal_ref(d.get("shariah"))
         labels = f"BOYCOTT {bl} / HALAL {hl}"
-        if d in trades:
-            tr = d.get("tranches") or [{}]
-            pe = d.get("partial_exit_plan") or {}
-            profit = pe.get("combined_net_profit") if pe.get("feasible") else d.get("net_profit_full_exit_t1")
-            text = (f"BUY {d['shares']} {t} AT {px(tr[0].get('price', 0))} LIMIT. RISK {money(d['downside']['executable_stop_downside'])} "
-                    f"(GAP {money(d['gap_scenario']['loss'])}). PROFIT IF TARGETS HIT {money(profit or 0)}.")
+        if kind == "buy":
+            rl, ra = plan_risk(d)
+            text = (f"BUY {buy_words(d)} LIMIT. {rl} {money(ra or 0)} "
+                    f"(GAP {money((d.get('gap_scenario') or {}).get('loss') or 0)}). "
+                    f"PROFIT IF TARGETS HIT {money(plan_profit(d) or 0)}.")
+            dot = mark(bl, hl) if is_clean(d) else YELLOW
             if rec is None and is_clean(d):
                 rec = L
+        elif kind == "park":
+            text = (f"PARK CASH: BUY {d.get('shares')} {t}, ABOUT {money((d.get('order_value') or 0) + (d.get('buy_fee') or 0))}. "
+                    "PAYS INTEREST. NOT A PRICE TRADE.")
+            dot = RED if mark(bl, hl) == RED else YELLOW
         else:
             why, _ = explain((d.get("reasons") or [""])[0])
-            text = f"{t}: ENGINE SAYS NO. {why or (d.get('reasons') or ['?'])[0]}"
-        rows.append((L, text, labels, d in trades))
+            word = "WAIT" if kind == "wait" else "ENGINE SAYS NO"
+            text = f"{t}: {word}. {why or (d.get('reasons') or ['?'])[0]}"
+            dot = YELLOW if kind == "wait" else RED
+        rows.append((L, text, labels, kind in ("buy", "park"), dot, d))
     L = next(letters)
-    rows.append((L, "KEEP CASH. $0 RISK, $0 GAIN.", "", True))
+    rows.append((L, "KEEP CASH. $0 RISK, $0 GAIN.", "", True, GREEN, None))
     return rows, rec or L
+
+
+def recommended_plan(plans):
+    rows, rec = option_rows(plans)
+    return next((r[5] for r in rows if r[0] == rec), None)
 
 
 def option_lines(plans):
     rows, rec = option_rows(plans)
     out = ["YOUR OPTIONS:"]
-    for L, text, labels, _ in rows:
-        out.append(f"  {L}. {text}" + (f" [{labels}]" if labels else ""))
-    rtext = next(t for L, t, _, _ in rows if L == rec)
-    out.append(f"  RECOMMENDED: {rec}. {'CLEAN ON BOTH SCREENS AND PASSES YOUR RISK RULES.' if 'KEEP CASH' not in rtext else 'NO CLEAN TRADE PASSES TODAY.'}")
-    flagged = [L for L, t, lab, ok in rows if ok and lab and ("ON BOYCOTT LIST" in lab or "NOT HALAL" in lab or "FLAGGED" in lab)]
+    for L, text, labels, _, dot, _d in rows:
+        out.append(f"  {dot} {L}. {text}" + (f" [{labels}]" if labels else ""))
+    r = next(r for r in rows if r[0] == rec)
+    if r[5] is None:
+        good = "NO CLEAN TRADE PASSES TODAY."
+    elif r[4] == GREEN:
+        good = "CLEAN ON BOTH SCREENS AND PASSES YOUR RISK RULES."
+    else:
+        good = "NOT ON BOYCOTT LISTS. HALAL ONLY IF YOU ACCEPT IT. PASSES YOUR RISK RULES."
+    out.append(f"  RECOMMENDED: {rec}. {good}")
+    flagged = [r[0] for r in rows if r[3] and r[5] is not None and r[0] != rec and not is_clean(r[5])]
     if flagged:
-        out.append(f"  FLAGGED OPTIONS {', '.join(flagged)}: SHOWN BECAUSE YOU CHOSE FLAG. YOUR DECISION.")
+        out.append(f"  OPTIONS {', '.join(flagged)}: FAILED A CHECK. SHOWN BECAUSE YOU CHOSE FLAG. YOUR DECISION.")
     return out + [""]
 
 
 def action_lines(plans, events="", skipped=()):
-    """v4.9: numbered steps the user can follow in the app. Numbers copied from the engine."""
+    """Numbered steps for the RECOMMENDED option only. Numbers copied from the engine."""
     out, n = ["WHAT TO DO NOW:"], 0
 
     def step(text):
@@ -512,36 +570,30 @@ def action_lines(plans, events="", skipped=()):
         n += 1
         out.append(f"  {n}. {text}")
 
-    trades = [d for d in plans if d.get("verdict") == "TRADE" and plan_is_trade(d)]
-    rows, rec = option_rows(plans)
-    rec_t = next((t for L, t, _, _ in rows if L == rec), "")
-    trades = [d for d in trades if d.get("asset") == "tbill" or (f" {(d.get('ticker') or '').upper()} AT " in rec_t)]
-    for d in trades:
-        t = (d.get("ticker") or "?").upper()
-        if d.get("asset") == "tbill":
-            step(f"BUY {d['shares']} {t} WITH A LIMIT ORDER, ABOUT {money(d['order_value'] + d['buy_fee'])} (CASH PARKING).")
-            continue
-        tr = d.get("tranches") or []
+    d = recommended_plan(plans)
+    if d is not None:
+        t, tr = (d.get("ticker") or "?").upper(), d.get("tranches") or []
         if len(tr) == 1:
             step(f"IN YOUR APP: LIMIT BUY {tr[0]['shares']} {t} AT {px(tr[0]['price'])}, GOOD-TILL-CANCEL.")
         else:
-            step(f"IN YOUR APP: LIMIT BUYS {t}: " + ", ".join(f"{x['shares']} @ {px(x['price'])}" for x in tr) + ".")
+            step(f"IN YOUR APP: {len(tr)} LIMIT BUYS FOR {t}: " + ", ".join(f"{x['shares']} AT {px(x['price'])}" for x in tr) + ".")
         if d.get("horizon") == "long":
             step(f"SET A PRICE ALERT AT {px(d['stop_level'])}. IF HIT: REVIEW, NOT AUTO SELL.")
         else:
-            step(f"WHEN IT FILLS: STOP ORDER AT {px(d['stop_level'])} FOR ALL SHARES.")
+            step(f"WHEN IT FILLS: STOP ORDER AT {px(d['stop_level'])} FOR ALL SHARES YOU HOLD.")
         pe = d.get("partial_exit_plan") or {}
         if pe.get("feasible"):
             step(f"THEN SELL ORDERS: {pe['sell_at_t1']} AT {px(d['t1_level'])}, {pe['hold_for_t2']} AT {px(d['t2_level'])}.")
         else:
             step(f"THEN SELL ORDER: ALL AT {px(d['t1_level'])}.")
         step(f"IF {t} NEVER DIPS TO YOUR PRICE: NO FILL, CASH STAYS. THAT IS FINE.")
-    if trades:
         step("TELL ME WHEN IT FILLS. I RECORD IT AND RE-CHECK RISK.")
     else:
         step("DO NOTHING TODAY. KEEP CASH. NO TRADE IS A GOOD RESULT.")
-        near = [d for d in plans if d.get("verdict") in ("WATCHLIST", "NO TRADE") and d.get("tranches")
-                and not never_researched(d)]
+        yours = [(d.get("ticker") or "?").upper() for d in plans if plan_kind(d) in ("buy", "park")]
+        if yours:
+            step(f"{', '.join(yours)}: FAILED A CHECK OR PAYS INTEREST. ONLY IF YOU DECIDE SO. SEE YOUR OPTIONS.")
+        near = [d for d in plans if plan_kind(d) in ("wait", "no") and d.get("tranches") and not never_researched(d)]
         for d in near[:2]:
             t = (d.get("ticker") or "?").upper()
             why, fix = explain((d.get("reasons") or [""])[0])
@@ -551,7 +603,7 @@ def action_lines(plans, events="", skipped=()):
 
 
 def render(plans, market="", metals="", events="", signals=None, skipped=()):
-    lines = []
+    lines = [f"{GREEN} GOOD   {YELLOW} WAIT / YOUR CALL   {RED} STOP"]
     first = next((d for d in plans if d.get("profile")), None)
     if first:
         lines.append(f"RISK: {str(first.get('profile')).upper()}. HOLD: {str(first.get('horizon') or 'n/a').upper()}.")

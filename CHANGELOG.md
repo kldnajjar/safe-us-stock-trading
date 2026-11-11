@@ -4,6 +4,31 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### v5.0: simple, colour-coded dashboard; one-call data intake; one-card run
+
+**Changed**
+- **Dashboard rebuilt in simple words.** Order: TODAY (one coloured answer) → DO THIS NOW → YOUR CHOICES (PAY / CAN LOSE / CAN WIN per option, BEST PICK or YOUR CALL) → CHECKS (boycott and halal with proof links) → YOUR MONEY → full numbers in folds → sources.
+- **Colour always means the same thing** and carries a sign so it reads without colour: green `+` good / can win, yellow `!` wait / your call, red `x` stop / can lose, blue `i` info. Risk meters turn yellow and red as they fill; gains are green and losses red.
+- Text output opens with the colour key and marks every check and option line with 🟢 🟡 🔴.
+- SKILL.md opens with an eight-step run card; rules list fixed to five.
+
+**Added**
+- `browser_fetch.js` + `ingest.py`: one browser call returns the quote and a year of daily prices for every ticker; one command writes the price files, ledgers them and runs the signals.
+- **Readable sources only.** A source that blocks reading (robots rule, paywall, login) is not used or cited. bl00d.money was tried and removed because it refuses automated readers; the paywalled outlets (Bloomberg, FT, WSJ, The Economist, Barron's, Nikkei Asia) left the news list.
+- **Robinhood: the user chooses the account** (United States, United Kingdom or Singapore; each has its own verified profile). The skill never assumes the US one.
+- Dashboard says "NO STOP SET" and "PAST ITS STOP" in place of UNQUANTIFIED / BREACHED.
+- `test_v50_ingest.py` (15 tests). 439 tests pass.
+
+**Fixed (v5.0 self-audit, 2026-11-11; one test each)**
+- A T-bill fund was listed as "ENGINE SAYS NO" while the steps told the user to buy it, even when not halal. It is now its own option ("PARK CASH", your call) and never appears in the steps.
+- Long-term ideas showed "RISK $0.00"; they now show the loss at the review level.
+- Plans bought in tranches were shown as one order at the first price; options, steps and dashboard now list every step.
+- A WAIT (watchlist) idea was shown as a red "ENGINE SAYS NO"; it is now a yellow WAIT.
+- Text and dashboard could letter the options differently; both now use one function, so letters and the pick always match.
+- SKILL.md: a dollar sign followed by a digit was replaced by the user's words when the skill loaded ("Under want,000"). Amounts are now written "1,000 USD"; a test guards it.
+- `--budget` below the app's minimum order now says so (it blamed the cash floor).
+- `ingest.py`: ticker names are validated before they become file names; New York time comes from the engine's own clock (no tz database needed).
+
 ### v4.9: clear options, flag labels with references, budget cap, Robinhood
 
 **Added**

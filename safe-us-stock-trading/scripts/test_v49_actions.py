@@ -61,7 +61,7 @@ class T(unittest.TestCase):
 
     def test_dashboard_action_and_skipped(self):
         page = rd.render([TRADE, UNRUN])
-        self.assertIn("What to do now", page)
+        self.assertIn("Do this now", page)
         self.assertIn("Skipped", page)
         self.assertNotIn("screen not run", page)
 
@@ -94,9 +94,11 @@ class FlagOptions(unittest.TestCase):
 
     def test_dashboard_has_screens_and_options(self):
         page = rd.render([FLAGGED, TRADE])
-        self.assertIn("Screens (every idea, with references)", page)
-        self.assertIn("Your options", page)
-        self.assertIn("recommended", page)
+        self.assertIn("Checks: boycott and halal", page)
+        self.assertIn("Your choices", page)
+        self.assertIn("BEST PICK", page)
+        self.assertIn("YOUR CALL", page)
+        self.assertIn("TODAY", page)
 
 
 class Brokers(unittest.TestCase):
