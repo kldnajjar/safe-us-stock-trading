@@ -604,8 +604,19 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
         p.append(f'<div class="banner warn">! NYSE closed ({e(mc.get("reason"))}). US market opens '
                  f'{e(_rs.market_open_words(mc))}. Ask again then.</div>')
     pick = best_pick(plans)
-    p.append(hero(plans))
-    steps = [ln.strip() for ln in _rs.action_lines(plans, events)[1:] if ln.strip()]
+    plan_only = not plans and isinstance(money_plan, dict) and money_plan.get("steps")
+    if plan_only:                       # a money plan with no ideas priced yet: not a "no buy" verdict
+        r0 = money_plan["steps"][0]
+        iso = _rs.ny_wall(r0.get("opens_new_york"))
+        w0 = _rs.when(iso) if (_rs.LOCAL and iso) else f'{r0.get("day")} 09:30 NEW YORK TIME'
+        p.append('<div class="hero warn"><div class="k warn">TODAY</div><div class="big warn">PLAN ONLY. NOTHING PRICED YET.</div>'
+                 '<div class="say">This page is your money plan. No stock was checked or priced for it.</div></div>')
+        steps = [f"1. ASK ME FOR A TRADE ON OR AFTER {w0}. USE UP TO {money(r0.get('up_to'))} THAT DAY.",
+                 "2. I CHECK THE IDEAS THAT DAY AND SHOW YOUR CHOICES. NO GOOD IDEA MEANS NO BUY.",
+                 "3. COME BACK FOR THE NEXT STEP ON ITS DAY. UNUSED MONEY STAYS CASH."]
+    else:
+        p.append(hero(plans))
+        steps = [ln.strip() for ln in _rs.action_lines(plans, events)[1:] if ln.strip()]
     p.append('<h2>Do this now</h2><ol class="steps">'
              + "".join(f"<li>{e(ln.split('. ', 1)[1] if '. ' in ln else ln)}</li>" for ln in steps) + "</ol>")
     todos = account_todos(state)
@@ -613,7 +624,8 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
         p.append('<h2>Also fix in your app</h2><ol class="steps fix">' + "".join(f"<li>{e(t)}</li>" for t in todos) + "</ol>")
     p.append(money_plan_section(money_plan))
     can_place = any(_rs.plan_kind(x) in ("buy", "park") for x in plans)
-    p.append(f"<h2>{'Your choices' if can_place else 'What I looked at'}</h2>" + option_cards(plans))
+    if not plan_only:
+        p.append(f"<h2>{'Your choices' if can_place else 'What I looked at'}</h2>" + option_cards(plans))
     p.append(checks_table(plans))
     p.append('<div class="legend">' + chip("GREEN = GOOD / CAN WIN", "ok") + chip("YELLOW = WAIT / YOUR CALL", "warn")
              + chip("RED = STOP / CAN LOSE", "bad") + chip("BLUE = INFO", "info") + "</div>")

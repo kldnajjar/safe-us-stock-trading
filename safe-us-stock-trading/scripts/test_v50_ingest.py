@@ -375,6 +375,11 @@ class MoneyPlan(unittest.TestCase):
         self.assertIn("They do not make a profit more likely", page)
         self.assertIn("FIRST: HOLDING(S) WITH NO STOP: NVDA", page)
         self.assertNotIn("Your money plan", rd.render([t49.TRADE]))
+        only = rd.render([], money_plan=self.plan("safe"), tz="Asia/Amman")          # a plan alone is not a verdict
+        self.assertIn("PLAN ONLY. NOTHING PRICED YET.", only)
+        self.assertNotIn("NO BUY TODAY", only)
+        self.assertNotIn("KEEP CASH</h3>", only)
+        self.assertIn("ASK ME FOR A TRADE ON OR AFTER WED 11 NOV 17:30 AMMAN TIME", only)
         rs.set_local("")
 
 
