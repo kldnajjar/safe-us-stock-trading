@@ -73,7 +73,8 @@ color:var(--mute);margin:30px 0 10px}.sub{color:var(--mute);font-size:13px}
 .nums>div{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-top:1px solid var(--line)}
 .nums>div:first-child{border-top:0}.nums .k{font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--mute)}
 .nums .v{font-size:18px;font-weight:750;font-variant-numeric:tabular-nums}
-.opt .chips{display:flex;flex-wrap:wrap;gap:6px}.opt .why{font-size:14px;margin-top:8px}
+.opt .chips{display:flex;flex-wrap:wrap;gap:6px}.odds{margin:6px 0 8px;font-size:13px;color:var(--mute)}
+.hero .odds{color:var(--ink);font-size:14px;margin:8px 0 0}.opt .why{font-size:14px;margin-top:8px}
 .ctx{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .ctx div{padding:10px 12px;border-left:5px solid var(--info)}.ctx b{display:block;font-size:12px;color:var(--info)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
@@ -211,6 +212,7 @@ def hero(plans):
                 f'<b class="bad">Can lose {money(ra)}</b>{at}. '
                 f'<b class="ok">Can win {money(_rs.plan_profit(d))}</b>. Not on boycott lists. '
                 + ("Halal only if you accept it (see CHECKS)." if _rs.halal_ref(d.get("shariah"))[0] != "HALAL" else "Halal.")
+                + (f'<div class="odds">{e(_rs.odds_words(d).capitalize())}</div>' if _rs.odds_words(d) else "")
                 + "</div></div>")
     yours = [x for x in plans if _rs.plan_kind(x) in ("buy", "park")]
     if yours:
@@ -250,6 +252,7 @@ def option_cards(plans):
                        f'<div class="sub">{_buy_say(d)}</div>'
                        + _nums([("PAY", money(cost), ""), (lose, money(ra), "bad"),
                                 ("CAN WIN", money(_rs.plan_profit(d)), "ok")])
+                       + (f'<div class="sub odds">{e(_rs.odds_words(d).capitalize())}</div>' if _rs.odds_words(d) else "")
                        + f'<div class="chips">{_chips(d)}</div>'
                        + ('' if clean else '<div class="why warn">Failed a check. Shown because you chose FLAG. You decide.</div>')
                        + '</div>')
@@ -277,6 +280,32 @@ def account_todos(state):
     out += [f"{t} HAS NO STOP. PICK A PRICE WHERE YOU WOULD SELL AND SET IT IN YOUR APP. THEN TELL ME THE PRICE."
             for t in a.get("unquantified") or []]
     return out
+
+
+def results_section(journal):
+    """'Is this making you money?' from a journal.py report. Always shown: with no record it says so."""
+    head = "<h2>Is this making you money?</h2>"
+    if not isinstance(journal, dict):
+        return (head + '<div class="banner warn">! NO RECORD YET. A plan only makes money if you follow it and '
+                'check the results. Tell me each fill (shares, price, fee) and this box will show the truth.</div>')
+    cls, words = _rs.journal_words(journal)
+    out = head + f'<div class="banner {cls}">{SIGN.get(cls, "")} {e(words)}</div>'
+    n = journal.get("closed_trades") or 0
+    if not n:
+        return out
+    pnl = journal.get("total_pnl")
+    b = journal.get("benchmark") or {}
+    rows = [("Trades finished", str(n), ""),
+            ("Money made or lost, after fees", ("+" if _num(pnl) and pnl > 0 else "") + money(pnl),
+             "ok" if _num(pnl) and pnl > 0 else "bad"),
+            ("Trades that made money", f"{journal.get('win_rate_pct')}%", ""),
+            ("Fees paid", money(journal.get("total_fees")), "")]
+    if b.get("available"):
+        d_ = b.get("skill_minus_benchmark")
+        rows.append(("Compared with just holding the fund", ("+" if _num(d_) and d_ > 0 else "") + money(d_),
+                     "ok" if _num(d_) and d_ > 0 else "bad"))
+    return out + '<div class="tiles">' + "".join(
+        f'<div class="tile"><div class="k">{e(k)}</div><div class="v {c}">{e(v)}</div></div>' for k, v, c in rows) + "</div>"
 
 
 def checks_table(plans):
@@ -517,7 +546,7 @@ def sectors(state, projected):
 
 
 def render(plans, state=None, projected=None, market="", metals="", events="", notes=(), sources=(),
-           title="Trade plan", skipped=(), tz=""):
+           title="Trade plan", skipped=(), tz="", journal=None):
     _rs.set_local(tz)
     # never-researched plans (screens not run) are listed once under Skipped, not as red cards
     skipped = list(skipped) + [f"{(x.get('ticker') or '?').upper()}|not researched (checks not run), not a candidate"
@@ -551,6 +580,7 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     p.append(checks_table(plans))
     p.append('<div class="legend">' + chip("GREEN = GOOD / CAN WIN", "ok") + chip("YELLOW = WAIT / YOUR CALL", "warn")
              + chip("RED = STOP / CAN LOSE", "bad") + chip("BLUE = INFO", "info") + "</div>")
+    p.append(results_section(journal))
     ctx = [(k, v) for k, v in (("Market", market), ("Gold / silver", metals), ("Watch these days", events)) if v]
     if ctx:
         p.append('<h2>What is going on</h2><div class="ctx">'
@@ -611,6 +641,7 @@ def main(argv=None):
     ap.add_argument("--title", default="Trade plan")
     ap.add_argument("--skipped", action="append", default=[], help='v4.9: "TICKER|why it was dropped"')
     ap.add_argument("--tz", default="", help="v5.1: the user's time zone, e.g. Asia/Amman or +03:00")
+    ap.add_argument("--journal", help="v5.1: journal.py report JSON; shows whether the plans have made money")
     ap.add_argument("--out")
     a = ap.parse_args(argv)
 
@@ -619,7 +650,7 @@ def main(argv=None):
             return json.load(fh)
     page = render([load(f) for f in a.plans], load(a.state) if a.state else None,
                   load(a.projected) if a.projected else None, a.market, a.metals, a.events,
-                  a.note, a.source, a.title, a.skipped, a.tz)
+                  a.note, a.source, a.title, a.skipped, a.tz, load(a.journal) if a.journal else None)
     if a.out:
         with open(a.out, "w") as fh:
             fh.write(page)

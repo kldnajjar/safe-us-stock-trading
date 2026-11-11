@@ -281,6 +281,44 @@ class BuyAtOrBelow(unittest.TestCase):
         self.assertIn(f"IT PASSES AT {px_} OR LOWER", rd.render([p]))
 
 
+class HonestOdds(unittest.TestCase):
+    """v5.1: the page shows the odds a plan needs and whether the plans have actually made money."""
+
+    def test_engine_gives_the_needed_win_rate_rounded_up(self):
+        import size_trade as st
+        res = dict(asset="stock", tranches=[1], downside=dict(executable_stop_downside=71.10),
+                   partial_exit_plan=dict(feasible=True, combined_net_profit=287.41))
+        self.assertEqual(st.needed_win_rate(res), 19.9)            # 71.10 / 358.51 = 19.83% -> up
+        self.assertIsNone(st.needed_win_rate(dict(asset="tbill", tranches=[1])))
+        self.assertIsNone(st.needed_win_rate(dict(asset="stock", tranches=[1], downside={})))
+
+    def test_real_plan_carries_it_and_the_output_says_it(self):
+        p = BuyAtOrBelow.setUpClass() or BuyAtOrBelow("at").at(338.00)
+        self.assertEqual(p["verdict"], "TRADE")
+        n = p["needed_win_rate_pct"]
+        self.assertTrue(0 < n < 100)
+        self.assertIn(f"ODDS YOU NEED: OF 100 TRADES LIKE THIS, MORE THAN {n:g} MUST REACH THE TARGETS", rs.render([p]))
+        self.assertIn("nobody can promise that", rd.render([p]))
+
+    def test_results_box_never_flatters(self):
+        none = rd.render([t49.TRADE])
+        self.assertIn("Is this making you money?", none)
+        self.assertIn("NO RECORD YET", none)
+        few = rd.render([t49.TRADE], journal=dict(verdict="too few closed trades to judge (3; need at least 20)",
+                                                 closed_trades=3, total_pnl=42.5, win_rate_pct=66.7, total_fees=30.1))
+        self.assertIn("TOO FEW TRADES TO KNOW", few)
+        self.assertIn("+$42.50", few)
+        bad = rd.render([t49.TRADE], journal=dict(verdict="not working: results are not above zero after costs",
+                                                 closed_trades=25, total_pnl=-310.0, win_rate_pct=32.0, total_fees=240.0))
+        self.assertIn("NOT WORKING", bad)
+        self.assertIn("-$310.00", bad)
+        behind = rd.render([t49.TRADE], journal=dict(
+            verdict="profitable but behind simply holding the benchmark fund", closed_trades=22, total_pnl=120.0,
+            win_rate_pct=45.0, total_fees=200.0, benchmark=dict(available=True, skill_minus_benchmark=-80.0)))
+        self.assertIn("LESS THAN JUST HOLDING THE FUND", behind)
+        self.assertIn("-$80.00", behind)
+
+
 class Marks(unittest.TestCase):
     def test_text_marks(self):
         out = rs.render([t49.FLAGGED, t49.TRADE])

@@ -420,6 +420,39 @@ def screen_source_line(d):
     return [f"  SCREEN DATA: {'. '.join(parts)}."] if parts else []
 
 
+def odds_words(d):
+    """Plain words for the engine's needed_win_rate_pct, or '' when the engine gave none."""
+    n = d.get("needed_win_rate_pct")
+    if n is None:
+        return ""
+    return (f"OF 100 TRADES LIKE THIS, MORE THAN {n:g} MUST REACH THE TARGETS OR YOU LOSE MONEY OVER TIME. "
+            "NOBODY CAN PROMISE THAT.")
+
+
+def odds_lines(d):
+    w = odds_words(d)
+    return [f"  ODDS YOU NEED: {w}"] if w else []
+
+
+JOURNAL_WORDS = [
+    ("no closed trades yet", "warn", "NO RESULTS YET. NOTHING HAS BEEN BOUGHT AND SOLD ON THIS PLAN."),
+    ("too few closed trades", "warn", "TOO FEW TRADES TO KNOW IF THIS MAKES MONEY. KEEP LOGGING."),
+    ("not working", "bad", "NOT WORKING. YOU ARE NOT AHEAD AFTER FEES. STOP AND RETHINK."),
+    ("behind simply holding", "warn", "MAKING MONEY, BUT LESS THAN JUST HOLDING THE FUND. HOLDING IS LESS WORK."),
+    ("ahead of the benchmark", "ok", "WORKING SO FAR: AHEAD AFTER FEES AND AHEAD OF JUST HOLDING THE FUND."),
+    ("positive after costs", "ok", "AHEAD AFTER FEES. NO FUND PRICES TO COMPARE WITH."),
+]
+
+
+def journal_words(rep):
+    """(tone, sentence) for a journal.py report verdict."""
+    v = str((rep or {}).get("verdict", "")).lower()
+    for pat, tone_, text in JOURNAL_WORDS:
+        if pat in v:
+            return tone_, text
+    return "warn", "NO RESULTS RECORD GIVEN."
+
+
 def render_trade(d, header=None):
     t = d.get("ticker") or d.get("asset", "?").upper()
     out = [header or f"BUY {t}"]
@@ -449,6 +482,7 @@ def render_trade(d, header=None):
         out.append(line)
     else:
         out.append(f"  SELL ALL AT {px(d['t1_level'])}  PROFIT {money(d['net_profit_full_exit_t1'])} (AFTER FEES)")
+    out += odds_lines(d)
     src = (d.get("assumptions") or {}).get("fee_schedule")
     if src and src != "verified":
         out.append(f"  FEE SCHEDULE: {str(src).upper()}, NOT VERIFIED. CHECK FEES IN YOUR APP.")

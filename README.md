@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 ![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
-![Tests: 450](https://img.shields.io/badge/tests-450%20passing-brightgreen)
+![Tests: 453](https://img.shields.io/badge/tests-453%20passing-brightgreen)
 ![Audited](https://img.shields.io/badge/money%20math-independently%20verified-brightgreen)
 
 [Status](#status-ready-for-paper-trading) · [Quick start](#quick-start) · [What you get](#what-you-get) · [Why NO TRADE](#why-youll-often-see-no-trade) · [How it works](#how-it-works) · [Configuration](#configuration) · [Safety design](#safety-design) · [Contributing](#contributing)
@@ -377,7 +377,7 @@ Claude's sandbox blocks most finance sites by default. Allowing `sec.gov`, `data
 │       ├── brokers.json              # broker fee profiles and templates
 │       ├── methodologies.json        # Shariah rules registry
 │       ├── sources.json              # ranked source registry and freshness rules
-│       └── test_*.py                 # 450 tests
+│       └── test_*.py                 # 453 tests
 ├── AUDIT-v4.8.md                     # verification and treasury audit record
 ├── docs/dashboard-preview.png
 ├── .github/                          # CI, issue and PR templates
@@ -407,8 +407,8 @@ It prints a JSON report and exits with code 0 only if every file is present, all
 | `test_dashboard.py` | Verbatim numbers, safety lines, escaping | 12 |
 | `test_v48_mandatory.py` | v4.8 with every gate on: screens, sources, market hours, signals, earnings, fees, journal, dashboard parity, one test per review finding | 109 |
 | `test_v49_actions.py` | v4.9: screens table with references, options and recommendation, flag labels, SKIPPED, `--budget`, Robinhood profile | 12 |
-| `test_v50_ingest.py` | v5.0: one-command data intake (CSV, ledger, signals), colour marks, one test per v5.0 audit finding, readable-sources rule, Robinhood accounts, first-real-run fixes, local time zone, pass-at price | 26 |
-| **Total** | | **450** |
+| `test_v50_ingest.py` | v5.0: one-command data intake (CSV, ledger, signals), colour marks, one test per v5.0 audit finding, readable-sources rule, Robinhood accounts, first-real-run fixes, local time zone, pass-at price, honest odds and results box | 29 |
+| **Total** | | **453** |
 
 The pre-v4.8 suites switch off the three v4.8 gates (screens, sources, market hours) with a short block at the top of each file, so each keeps testing the gate it was written for. Fixtures pin the engine's clock inside the test process; the command line can't set it.
 

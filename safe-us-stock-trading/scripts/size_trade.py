@@ -1305,7 +1305,25 @@ def compute(a):
         hint = None
     if hint:
         res["buy_at_or_below"] = hint
+    odds = needed_win_rate(res)
+    if odds is not None:
+        res["needed_win_rate_pct"] = odds
     return res
+
+
+def needed_win_rate(res):
+    """v5.1: of 100 trades like this one, how many must reach the targets just to break even, if every
+    other one ends at the stop (planned loss). = loss / (loss + profit), rounded UP. A simple two-outcome
+    picture for judging the plan; it is not a forecast and real trades can lose more (gaps)."""
+    if res.get("asset") == "tbill" or not res.get("tranches"):
+        return None
+    dn = res.get("downside") or {}
+    loss = dn.get("executable_stop_downside") or dn.get("long_term_review_level_downside")
+    pe = res.get("partial_exit_plan") or {}
+    profit = pe.get("combined_net_profit") if pe.get("feasible") else res.get("net_profit_full_exit_t1")
+    if not loss or not profit or loss <= 0 or profit <= 0:
+        return None
+    return math.ceil(1000.0 * loss / (loss + profit)) / 10.0
 
 
 def _compute(a):
