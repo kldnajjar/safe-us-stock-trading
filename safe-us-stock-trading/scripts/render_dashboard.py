@@ -61,7 +61,7 @@ color:var(--mute);margin:30px 0 10px}.sub{color:var(--mute);font-size:13px}
 .hero.ok{background:var(--ok-bg);border-color:var(--ok)}.hero.warn{background:var(--warn-bg);border-color:var(--warn)}
 .hero .k{font-size:12px;font-weight:700;letter-spacing:.08em}.hero .big{font-size:30px;font-weight:800;line-height:1.15}
 .hero .say{color:var(--ink);font-size:16px;margin-top:6px}
-.steps{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 16px 6px 8px;margin:0}
+.steps{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 16px 6px 44px;margin:0}
 .steps li{padding:8px 4px;border-top:1px solid var(--line);font-weight:600}.steps li:first-child{border-top:0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
 .opt,.tile,.card,.tbl,.ctx div{background:var(--card);border:1px solid var(--line);border-radius:12px}
@@ -95,6 +95,11 @@ details{margin:10px 0}summary{cursor:pointer;font-weight:700;padding:8px 0}detai
 a{color:var(--info)}ul.src{padding-left:18px;font-size:14px}
 .foot{margin-top:28px;font-weight:800;text-align:center}
 @media (max-width:520px){.secrow{grid-template-columns:90px 1fr 90px}.hero .big{font-size:24px}}
+@media print{:root,:root[data-theme="dark"],:root:not([data-theme="light"]){--bg:#fff;--card:#fff;--ink:#111;--mute:#555;
+--line:#cfcfc8;--ok:#17693f;--ok-bg:#e2f3e9;--warn:#7d5200;--warn-bg:#fcefcf;--bad:#a81f14;--bad-bg:#fde5e2;
+--info:#1f5c99;--info-bg:#e4eef8}
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}main{max-width:none;padding:0}
+.opt,.tile,.card,.hero,.steps,.ctx div,tr,.secrow{break-inside:avoid}h2{break-after:avoid}details>*{display:block}}
 """
 
 
@@ -556,6 +561,9 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
                          f'{e(it.get("what") or it.get("category"))}</a> <span class="sub">{e(when)}</span></li>')
     for s in sources:
         t, _, u = s.partition("|")
+        if u in seen:
+            continue
+        seen.add(u)
         if u.startswith("https://") or u.startswith("http://"):
             links.append(f'<li><a href="{e(u)}" rel="noopener noreferrer">{e(t or u)}</a></li>')
     if links:

@@ -41,8 +41,9 @@ def halal_ref(sh):
     if not sh or sh.get("mode") == "off" or sh.get("screened") is False:
         return "NOT CHECKED", "screen not run"
     pol = sh.get("policy_decision")
+    # UNVERIFIED = the check ran but the proof was missing or old. That is not the same as "not checked".
     label = {"PERMITTED": "HALAL", "REQUIRES_ACCEPTANCE": "HALAL IF YOU ACCEPT", "EXCLUDED": "NOT HALAL",
-             "UNVERIFIED": "NOT CHECKED"}.get(pol, "NOT CHECKED")
+             "UNVERIFIED": "CAN'T CONFIRM"}.get(pol, "NOT CHECKED")
     meth = (sh.get("methodology") or "").split(",")[0]
     why = "; ".join((sh.get("reasons") or [])[:2])
     src = sh.get("rules_source") if isinstance(sh.get("rules_source"), str) else (sh.get("rules_source") or {}).get("url", "")
@@ -83,7 +84,7 @@ def is_clean(d):
 def halal_line(sh):
     if sh and sh.get("mode") == "flag" and sh.get("screened") is not False:
         label, ref = halal_ref(sh)
-        if label in ("NOT HALAL", "HALAL IF YOU ACCEPT", "NOT CHECKED"):
+        if label in ("NOT HALAL", "HALAL IF YOU ACCEPT", "NOT CHECKED", "CAN'T CONFIRM"):
             out = [f"  HALAL: {label}" + (" (FLAG ONLY: YOU DECIDE)" if label != "HALAL IF YOU ACCEPT" else "")]
             if ref:
                 out.append(f"    {ref}")
@@ -598,7 +599,7 @@ def action_lines(plans, events="", skipped=()):
             t = (d.get("ticker") or "?").upper()
             why, fix = explain((d.get("reasons") or [""])[0])
             step(f"CLOSEST IDEA: {t}. BLOCKED: {why or 'SEE BELOW'} {('NEXT: ' + fix) if fix else ''}".rstrip())
-        step("RE-RUN ME" + (f" AFTER: {events.upper()}" if events else " TOMORROW") + ".")
+        step("RE-RUN ME" + (f" AFTER: {events.upper().rstrip('. ')}" if events else " TOMORROW") + ".")
     return out + [""]
 
 

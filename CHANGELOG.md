@@ -17,7 +17,12 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 - **Readable sources only.** A source that blocks reading (robots rule, paywall, login) is not used or cited. bl00d.money was tried and removed because it refuses automated readers; the paywalled outlets (Bloomberg, FT, WSJ, The Economist, Barron's, Nikkei Asia) left the news list.
 - **Robinhood: the user chooses the account** (United States, United Kingdom or Singapore; each has its own verified profile). The skill never assumes the US one.
 - Dashboard says "NO STOP SET" and "PAST ITS STOP" in place of UNQUANTIFIED / BREACHED.
-- `test_v50_ingest.py` (15 tests). 439 tests pass.
+- `test_v50_ingest.py` (18 tests). 442 tests pass.
+
+**Fixed (first real v5.0 run, 2026-11-11)**
+- Dashboard printed or saved as PDF from dark mode came out pale grey: print now forces the light colours, keeps chip and bar colours, and avoids splitting cards across pages.
+- A halal check that ran but could not be proven said "NOT CHECKED"; it now says "CAN'T CONFIRM".
+- Step numbers sat on the box edge; double period after the events line; the same source listed twice.
 
 **Fixed (v5.0 self-audit, 2026-11-11; one test each)**
 - A T-bill fund was listed as "ENGINE SAYS NO" while the steps told the user to buy it, even when not halal. It is now its own option ("PARK CASH", your call) and never appears in the steps.

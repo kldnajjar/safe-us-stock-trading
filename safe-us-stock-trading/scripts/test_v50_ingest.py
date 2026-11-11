@@ -164,6 +164,29 @@ class Robinhood(unittest.TestCase):
         self.assertEqual(broker_profile("robinhood-uk")[0]["fx_pct"], 0.001)
 
 
+class FirstRealRun(unittest.TestCase):
+    """Findings from the first real v5.0 dashboard (2026-11-11), one test each."""
+
+    def test_unverified_halal_is_cant_confirm_not_not_checked(self):
+        sh = dict(mode="flag", screened=True, policy_decision="UNVERIFIED", reasons=["not verified from fund documents"])
+        self.assertEqual(rs.halal_ref(sh)[0], "CAN'T CONFIRM")
+        self.assertEqual(rs.halal_ref(dict(mode="flag", screened=False))[0], "NOT CHECKED")
+        d = dict(t49.TRADE, shariah=sh)
+        self.assertFalse(rs.is_clean(d))
+        self.assertIsNone(rs.recommended_plan([d]))               # never the best pick
+
+    def test_no_double_period_after_events(self):
+        out = rs.render([], events="FED DEC 9. CPI DEC 10.")
+        self.assertIn("RE-RUN ME AFTER: FED DEC 9. CPI DEC 10.\n", out)
+        self.assertNotIn("..", out)
+
+    def test_dashboard_prints_in_light_colours_and_lists_each_source_once(self):
+        page = rd.render([t49.TRADE], sources=["BLS|https://www.bls.gov/cpi", "BLS again|https://www.bls.gov/cpi"])
+        self.assertIn("@media print", page)
+        self.assertIn("print-color-adjust:exact", page)
+        self.assertEqual(page.count('href="https://www.bls.gov/cpi"'), 1)
+
+
 class Marks(unittest.TestCase):
     def test_text_marks(self):
         out = rs.render([t49.FLAGGED, t49.TRADE])
