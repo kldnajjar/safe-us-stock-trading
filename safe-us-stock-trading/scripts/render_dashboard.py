@@ -288,6 +288,71 @@ def sentence(text):
     return ". ".join(x.strip().capitalize() for x in str(text).split(". ") if x.strip())
 
 
+MOODS = {"RISK-ON": ("ok", "PEOPLE ARE BUYING. PRICES TEND TO RISE."),
+         "NEUTRAL": ("info", "MIXED. NO CLEAR DIRECTION."),
+         "RISK-OFF": ("bad", "PEOPLE ARE SCARED. PRICES TEND TO FALL.")}
+
+
+def clean_analysis(an):
+    """Keep only what can be stood behind. A fact needs words, an https source link and a date; a fact
+    without them is dropped and counted. Returns (analysis, dropped)."""
+    if not isinstance(an, dict):
+        return None, 0
+    facts, dropped = [], 0
+    for f in an.get("facts") or []:
+        ok = (isinstance(f, dict) and str(f.get("what") or "").strip() and str(f.get("url") or "").startswith("https://")
+              and str(f.get("date") or "").strip())
+        if ok:
+            facts.append(f)
+        else:
+            dropped += 1
+    out = dict(an, facts=facts, mood=str(an.get("mood") or "").upper())
+    return (out if out["mood"] in MOODS and facts else None), dropped
+
+
+def analysis_section(an):
+    """'My read of the market': the analyst's view, every fact with its source and date, both sides,
+    what would change the view. An opinion built on cited facts, never a promise."""
+    an, dropped = clean_analysis(an)
+    if an is None:
+        return ""
+    cls, mood_words = MOODS[an["mood"]]
+    out = ('<h2>My read of the market</h2>'
+           f'<div class="hero t-{cls}" style="border-left-color:var(--{cls});background:var(--{cls}-bg)">'
+           f'<div class="k {cls}">MARKET MOOD</div><div class="big {cls}" style="font-size:24px">{e(an["mood"])}</div>'
+           f'<div class="say">{e(mood_words)} {e(an.get("one_line") or "")}</div></div>')
+    rows = "".join(
+        f'<tr><td><b>{e(f.get("what"))}</b></td><td>{e(f.get("means") or "")}</td>'
+        f'<td class="ref"><a href="{e(f["url"])}" rel="noopener noreferrer">{e(f.get("source") or "source")}</a> '
+        f'{e(f.get("date"))}</td></tr>' for f in an["facts"])
+    out += ('<div class="tbl" style="margin-top:10px"><table class="chk"><thead><tr><th>What happened</th>'
+            f'<th>What it means</th><th>Proof</th></tr></thead><tbody>{rows}</tbody></table></div>')
+    if dropped:
+        out += f'<div class="sub">{dropped} point(s) left out: no source I could show.</div>'
+
+    def lst(title, items, cls_):
+        items = [x for x in items or [] if isinstance(x, dict) and x.get("kind")]
+        if not items:
+            return ""
+        return (f'<div class="opt t-{cls_}"><h3>{e(title)}</h3>' + "".join(
+            f'<div class="why"><b>{e(str(x["kind"]).upper())}</b>: {e(x.get("why") or "")}</div>' for x in items) + "</div>")
+    two = lst("Conditions help", an.get("favours"), "ok") + lst("Conditions hurt", an.get("against"), "bad")
+    if two:
+        out += f'<div class="grid" style="margin-top:10px">{two}</div>'
+    sc = [x for x in an.get("scenarios") or [] if isinstance(x, dict) and x.get("name")]
+    if sc:
+        out += ('<div class="tbl" style="margin-top:10px"><table class="chk"><thead><tr><th>If this happens</th>'
+                '<th>Then likely</th><th>Watch</th></tr></thead><tbody>' + "".join(
+                    f'<tr><td><b>{e(str(x["name"]).upper())}</b></td><td>{e(x.get("then") or "")}</td>'
+                    f'<td>{e(x.get("watch") or "")}</td></tr>' for x in sc) + "</tbody></table></div>")
+    cm = [str(x) for x in an.get("change_my_mind") or [] if str(x).strip()]
+    if cm:
+        out += '<div class="sub" style="margin-top:8px"><b>I would change this view if:</b> ' + e("; ".join(cm)) + ".</div>"
+    out += ('<div class="sub" style="margin-top:6px">This is my reading of the facts above. Markets often do the '
+            'opposite of what the facts suggest. It is not a promise and not licensed advice.</div>')
+    return out
+
+
 def money_plan_section(mp):
     """'Your money plan: when and what kind' from money_plan.py. Numbers copied; times in the user's zone."""
     if not isinstance(mp, dict) or not mp.get("steps"):
@@ -582,7 +647,7 @@ def sectors(state, projected):
 
 
 def render(plans, state=None, projected=None, market="", metals="", events="", notes=(), sources=(),
-           title="Trade plan", skipped=(), tz="", journal=None, money_plan=None):
+           title="Trade plan", skipped=(), tz="", journal=None, money_plan=None, analysis=None):
     _rs.set_local(tz)
     # never-researched plans (screens not run) are listed once under Skipped, not as red cards
     skipped = list(skipped) + [f"{(x.get('ticker') or '?').upper()}|not researched (checks not run), not a candidate"
@@ -622,6 +687,7 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     todos = account_todos(state)
     if todos:
         p.append('<h2>Also fix in your app</h2><ol class="steps fix">' + "".join(f"<li>{e(t)}</li>" for t in todos) + "</ol>")
+    p.append(analysis_section(analysis))
     p.append(money_plan_section(money_plan))
     can_place = any(_rs.plan_kind(x) in ("buy", "park") for x in plans)
     if not plan_only:
@@ -692,6 +758,7 @@ def main(argv=None):
     ap.add_argument("--tz", default="", help="v5.1: the user's time zone, e.g. Asia/Amman or +03:00")
     ap.add_argument("--journal", help="v5.1: journal.py report JSON; shows whether the plans have made money")
     ap.add_argument("--money-plan", help="v5.2: money_plan.py JSON; shows when to invest and in what kind of thing")
+    ap.add_argument("--analysis", help="v5.2: ANALYSIS.json, the analyst's market read (mood, sourced facts, both sides, scenarios)")
     ap.add_argument("--out")
     a = ap.parse_args(argv)
 
@@ -701,7 +768,7 @@ def main(argv=None):
     page = render([load(f) for f in a.plans], load(a.state) if a.state else None,
                   load(a.projected) if a.projected else None, a.market, a.metals, a.events,
                   a.note, a.source, a.title, a.skipped, a.tz, load(a.journal) if a.journal else None,
-                  load(a.money_plan) if a.money_plan else None)
+                  load(a.money_plan) if a.money_plan else None, load(a.analysis) if a.analysis else None)
     if a.out:
         with open(a.out, "w") as fh:
             fh.write(page)

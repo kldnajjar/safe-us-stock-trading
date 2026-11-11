@@ -380,6 +380,13 @@ python3 "$SKILL_DIR/scripts/size_trade.py" --asset tbill --ticker TICKER --profi
 
 ### 6d. Using results
 
+- **Be the analyst (v5.2).** The user comes for a market read, not only for a sized order. Every session, after the news scan, write `ANALYSIS.json` and pass `--analysis ANALYSIS.json` to `render_dashboard.py`; give the same read in the chat in a few plain lines. It has:
+  - `mood`: `RISK-ON`, `NEUTRAL` or `RISK-OFF`, and `one_line` saying why.
+  - `facts`: 3 to 6 things that happened, each `{what, means, source, url, date}`. Every fact must be in the source ledger; a fact with no https link or date is dropped by the renderer and counted on the page. Read actual vs expected (section 8), not headlines.
+  - `favours` and `against`: the **kinds** of thing these conditions help or hurt, each with the reason (`{kind, why}`). Kinds only (gold, cash, broad funds, large steady companies, fast-growing companies), never a promise about a named stock.
+  - `scenarios`: 2 to 3 "if this happens, then likely that, watch this date".
+  - `change_my_mind`: what would make you change the read.
+  Take a clear position and say how sure you are; "it could go either way" with no lean is not analysis. Always give the other side. Never promise a result, and say once that this is your reading, not licensed advice. The engine still decides whether any order is allowed: the read explains, it never overrides a gate.
 - **Money plan for the whole amount (v5.2).** When the user gives a total to invest, asks "when and what should I invest in", or the amount is bigger than one position may hold, run `money_plan.py --state ACTUAL.json --profile P [--amount USD] --steps N --every-days D > MONEY_PLAN.json` and pass `--money-plan MONEY_PLAN.json` to `render_dashboard.py`. It gives the safety cash to keep, the dated steps (in the user's time zone), the most money allowed per kind of thing, and anything to fix first. It names **no stock** and promises nothing: each step means "run the skill that day", and the names come from that day's fresh prices and checks. Say plainly that steps spread the timing risk and do not make a profit more likely. Never write such a plan by hand, and never fill a step with a ticker in advance.
 - **Honest odds (v5.1).** Every sized plan carries `needed_win_rate_pct`: of 100 trades like it, how many must reach the targets just to break even if the rest end at the stop. The renderers print it with "nobody can promise that". Never soften or drop it, and never say or imply that a plan will make money.
 - **Is it making money? (v5.1).** Every session run `journal.py report --journal JOURNAL.json [--benchmark FUND.csv] --json > REPORT.json` (when a journal exists) and pass `--journal REPORT.json` to `render_dashboard.py`. The page shows the result in plain words: no record yet, too few trades to know, not working, behind just holding the fund, or working so far. With no journal the page says there is no record and asks the user to report fills.
@@ -816,7 +823,7 @@ python3 "$SKILL_DIR/scripts/render_dashboard.py" --plans PLAN1.json PLAN2.json \
   --state ACTUAL.json [--projected PROJECTED.json] \
   --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE." \
   [--skipped "XYZ|why dropped"] [--note "NVDA: on AFSC list"] [--source "Title|https://..."] \
-  --tz ZONE [--journal REPORT.json] [--money-plan MONEY_PLAN.json] --title "Trade plan YYYY-MM-DD" --out dashboard.html
+  --tz ZONE [--journal REPORT.json] [--money-plan MONEY_PLAN.json] [--analysis ANALYSIS.json] --title "Trade plan YYYY-MM-DD" --out dashboard.html
 ```
 
 - Write `--market`, `--metals`, `--events` and every `--note` in short plain words (a 12-year-old should follow them). No jargon: say "price fell under its long average", not "below the 200-DMA".

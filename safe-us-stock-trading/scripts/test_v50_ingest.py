@@ -383,6 +383,39 @@ class MoneyPlan(unittest.TestCase):
         rs.set_local("")
 
 
+class MarketRead(unittest.TestCase):
+    """v5.2: the analyst's market read on the page: sourced facts, both sides, what would change it."""
+    AN = dict(mood="risk-off", one_line="Inflation came in hot.",
+              facts=[dict(what="Prices rose 0.4% in October", means="The Fed may raise rates", source="BLS",
+                          url="https://www.bls.gov/cpi", date="2026-11-10"),
+                     dict(what="A rumour with no source", means="?", url="", date="2026-11-10"),
+                     dict(what="No date", url="https://example.com/x")],
+              favours=[dict(kind="cash", why="no rush to buy")], against=[dict(kind="growth companies", why="higher rates")],
+              scenarios=[dict(name="Inflation cools", then="pressure eases", watch="CPI DEC 10")],
+              change_my_mind=["the Fed says it will not raise rates"])
+
+    def test_facts_need_a_source_and_a_date(self):
+        an, dropped = rd.clean_analysis(self.AN)
+        self.assertEqual((len(an["facts"]), dropped), (1, 2))
+        page = rd.render([t49.TRADE], analysis=self.AN)
+        self.assertIn("My read of the market", page)
+        self.assertIn("RISK-OFF", page)
+        self.assertIn('href="https://www.bls.gov/cpi"', page)
+        self.assertNotIn("A rumour with no source", page)
+        self.assertIn("2 point(s) left out: no source I could show.", page)
+        self.assertIn("I would change this view if:", page)
+        self.assertIn("not a promise and not licensed advice", page)
+
+    def test_no_section_without_a_valid_mood_or_any_sourced_fact(self):
+        self.assertNotIn("My read of the market", rd.render([t49.TRADE]))
+        self.assertNotIn("My read of the market", rd.render([t49.TRADE], analysis=dict(self.AN, mood="GREAT TIME TO BUY")))
+        self.assertNotIn("My read of the market", rd.render([t49.TRADE], analysis=dict(self.AN, facts=self.AN["facts"][1:])))
+
+    def test_untrusted_text_is_escaped(self):
+        an = dict(self.AN, one_line="<script>x</script>")
+        self.assertNotIn("<script>x", rd.render([t49.TRADE], analysis=an))
+
+
 class Marks(unittest.TestCase):
     def test_text_marks(self):
         out = rs.render([t49.FLAGGED, t49.TRADE])
