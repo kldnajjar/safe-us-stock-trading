@@ -298,7 +298,7 @@ class HonestOdds(unittest.TestCase):
         n = p["needed_win_rate_pct"]
         self.assertTrue(0 < n < 100)
         self.assertIn(f"ODDS YOU NEED: OF 100 TRADES LIKE THIS, MORE THAN {n:g} MUST REACH THE TARGETS", rs.render([p]))
-        self.assertIn("nobody can promise that", rd.render([p]))
+        self.assertIn("Nobody can promise that", rd.render([p]))
 
     def test_results_box_never_flatters(self):
         none = rd.render([t49.TRADE])

@@ -212,7 +212,7 @@ def hero(plans):
                 f'<b class="bad">Can lose {money(ra)}</b>{at}. '
                 f'<b class="ok">Can win {money(_rs.plan_profit(d))}</b>. Not on boycott lists. '
                 + ("Halal only if you accept it (see CHECKS)." if _rs.halal_ref(d.get("shariah"))[0] != "HALAL" else "Halal.")
-                + (f'<div class="odds">{e(_rs.odds_words(d).capitalize())}</div>' if _rs.odds_words(d) else "")
+                + (f'<div class="odds">{e(sentence(_rs.odds_words(d)))}</div>' if _rs.odds_words(d) else "")
                 + "</div></div>")
     yours = [x for x in plans if _rs.plan_kind(x) in ("buy", "park")]
     if yours:
@@ -252,7 +252,7 @@ def option_cards(plans):
                        f'<div class="sub">{_buy_say(d)}</div>'
                        + _nums([("PAY", money(cost), ""), (lose, money(ra), "bad"),
                                 ("CAN WIN", money(_rs.plan_profit(d)), "ok")])
-                       + (f'<div class="sub odds">{e(_rs.odds_words(d).capitalize())}</div>' if _rs.odds_words(d) else "")
+                       + (f'<div class="sub odds">{e(sentence(_rs.odds_words(d)))}</div>' if _rs.odds_words(d) else "")
                        + f'<div class="chips">{_chips(d)}</div>'
                        + ('' if clean else '<div class="why warn">Failed a check. Shown because you chose FLAG. You decide.</div>')
                        + '</div>')
@@ -280,6 +280,11 @@ def account_todos(state):
     out += [f"{t} HAS NO STOP. PICK A PRICE WHERE YOU WOULD SELL AND SET IT IN YOUR APP. THEN TELL ME THE PRICE."
             for t in a.get("unquantified") or []]
     return out
+
+
+def sentence(text):
+    """'TWO WORDS. MORE.' -> 'Two words. More.'"""
+    return ". ".join(x.strip().capitalize() for x in str(text).split(". ") if x.strip())
 
 
 def results_section(journal):
