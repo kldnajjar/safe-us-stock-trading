@@ -59,12 +59,14 @@ def boycott_ref(b):
     label = {"reviewed_no_match": "NOT ON LISTS", "flagged": "FLAGGED", "excluded": "ON BOYCOTT LIST",
              "unverified": "NOT FULLY CHECKED"}.get(st, "NOT CHECKED")
     srcs = b.get("sources_checked") or {}
-    hits = [f"{k.upper()} {v.get('url', '')}".strip() for k, v in srcs.items() if v.get("finding") == "match"]
+    names = {"bloodmoney": "BL00D.MONEY"}
+    hits = [f"{names.get(k, k.upper())} {v.get('url', '')}".strip() for k, v in srcs.items() if v.get("finding") == "match"]
     checked = sorted({v.get("checked_on") for v in srcs.values() if v.get("checked_on")})
     if hits:
         ref = "LISTED BY: " + "; ".join(hits)
     elif st == "reviewed_no_match":
-        ref = f"{len(srcs)} SOURCES CHECKED {checked[-1] if checked else ''}: " + ", ".join(k.upper() for k in srcs)
+        ref = (f"{len(srcs)} SOURCES CHECKED {checked[-1] if checked else ''}: " + ", ".join(names.get(k, k.upper()) for k in srcs)
+               + ("" if "bloodmoney" in srcs else ". BL00D.MONEY NOT CHECKED"))
     else:
         ref = "; ".join((b.get("reasons") or [])[:2])
     extra = [r for r in (b.get("reasons") or [])[:2] if not r.lower().startswith("listed by")]

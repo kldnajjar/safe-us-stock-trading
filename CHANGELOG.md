@@ -14,7 +14,9 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 **Added**
 - `browser_fetch.js` + `ingest.py`: one browser call returns the quote and a year of daily prices for every ticker; one command writes the price files, ledgers them and runs the signals.
-- `test_v50_ingest.py` (13 tests). 437 tests pass.
+- **bl00d.money as an optional extra boycott source.** The site refuses automated readers, so the user checks it; a dated match flags the name with its link, never excludes alone, and is never required.
+- Dashboard says "NO STOP SET" and "PAST ITS STOP" in place of UNQUANTIFIED / BREACHED.
+- `test_v50_ingest.py` (19 tests). 443 tests pass.
 
 **Fixed (v5.0 self-audit, 2026-11-11; one test each)**
 - A T-bill fund was listed as "ENGINE SAYS NO" while the steps told the user to buy it, even when not halal. It is now its own option ("PARK CASH", your call) and never appears in the steps.

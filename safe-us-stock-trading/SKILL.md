@@ -114,6 +114,7 @@ B4–B5a apply to every platform. In a later session, confirm them in one questi
 | Trigger | Question | Answer |
 |---|---|---|
 | A holding or order has no sector data | Which sector is TICKER in? | picker of likely sectors · Not sure (stays `Unclassified`, worst case) |
+| Boycott screen starts (once per session) | Do you want bl00d.money checked too? I can't read that site myself; you look the name up and tell me. | Yes, I'll check (then: what does it say for TICKER? Listed · Not listed) · No, skip it |
 | Boycott FLAGGED result | TICKER is flagged (material Israeli operations, not on a list). Include it anyway? | Include · Skip it |
 | Shariah REQUIRES_ACCEPTANCE | TICKER passes the screen but misses the index entry buffer (reason). Include it anyway? | Include · Skip it |
 | Metal trust or T-bill ETF with boycott on | How should US government bonds be treated for the boycott screen? (ask once) | Exclude · Allow |
@@ -390,6 +391,8 @@ Screens out companies complicit with Israel. The status is **computed by `boycot
 | `afsc` | AFSC Investigate | investigate.afsc.org |
 | `whoprofits` | Who Profits | whoprofits.org |
 | `sec` | SEC filings | sec.gov EDGAR; also record `israel_hq` and `material_israel_ops` as true or false |
+
+   **Extra source (optional, v5.0): `bloodmoney`, https://bl00d.money/.** The site refuses automated readers (web fetch is blocked by its robots rule), so do not try to scrape it. Ask the user once per session (Part D): "Do you want bl00d.money checked too? You can look the company up there and tell me what it says." Record what the user reports as `"bloodmoney": {"finding": "match|no_match", "checked_on": "YYYY-MM-DD", "url": "https://bl00d.money/..."}`. A match **flags** the name (shown with its link, user decides) in both strictness levels; it never excludes on its own, and leaving it out never blocks or clears anything. The output says "BL00D.MONEY NOT CHECKED" when it was not checked.
 
 3. **Write the evidence and run the screen** (the evidence format is in the script header):
 

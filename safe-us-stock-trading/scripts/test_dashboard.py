@@ -92,8 +92,9 @@ class Dashboard(unittest.TestCase):
         state = ps.build(st, fee=ti.FEE)
         page = rd.render([self.no], state)
         self.assertIn("NO STOP: real risk unknown", page)
-        self.assertIn("UNQUANTIFIED", page)
-        self.assertIn("BREACHED", page)
+        self.assertIn("NO STOP SET", page)
+        self.assertIn("PAST ITS STOP", page)
+        self.assertNotIn("UNQUANTIFIED", page)
         self.assertGreaterEqual(page.count("CHECK</span>"), 2)
         self.assertIn("No new trades until", page)
 

@@ -135,6 +135,69 @@ class AuditFixes(unittest.TestCase):
         self.assertTrue(any("--budget" in b for b in st.validate_inputs(a)))
 
 
+class BloodMoney(unittest.TestCase):
+    """bl00d.money is an optional extra boycott source: a match flags, nothing else changes."""
+
+    def ev(self, **bm):
+        import boycott_screen as bs
+        day = "2026-11-11"
+        src = {k: dict(finding="no_match", checked_on=day, url=f"https://{k}.example/") for k in bs.SOURCES}
+        src["ohchr"]["list_version"] = "A/HRC/63/20"
+        src["sec"].update(israel_hq=False, material_israel_ops=False)
+        if bm:
+            src["bloodmoney"] = bm
+        return dict(ticker="ABC", isin="US0000000001", entity="ABC Corp", asset="stock", identity_resolved=True,
+                    sources=src), day
+
+    def status(self, strict="strict", **bm):
+        import boycott_screen as bs
+        ev, day = self.ev(**bm)
+        return bs.compute_status(ev, day, strict)
+
+    def test_not_required(self):
+        st, why = self.status()
+        self.assertEqual(st, "REVIEWED_NO_MATCH")
+        self.assertIn("extra source not checked: bl00d.money", why[0])
+
+    def test_match_flags_in_both_strictness_levels(self):
+        bm = dict(finding="match", checked_on="2026-11-11", url="https://bl00d.money/company/abc")
+        for strict in ("strict", "moderate"):
+            st, why = self.status(strict, **bm)
+            self.assertEqual(st, "FLAGGED")
+            self.assertIn("bl00d.money", why[0])
+
+    def test_no_match_is_recorded(self):
+        st, why = self.status(finding="no_match", checked_on="2026-11-11", url="https://bl00d.money/")
+        self.assertEqual(st, "REVIEWED_NO_MATCH")
+        self.assertIn("bl00d.money also checked", why[0])
+
+    def test_bad_entry_counts_as_not_checked_and_never_flags(self):
+        for bm in (dict(finding="match", checked_on="2026-09-01", url="https://bl00d.money/x"),       # too old
+                   dict(finding="match", checked_on="2026-11-11", url="https://evil.example/bl00d.money"),
+                   dict(finding="match", checked_on="soon", url="https://bl00d.money/x"),
+                   dict(finding="unreachable", checked_on="2026-11-11", url="https://bl00d.money/")):
+            st, why = self.status(**bm)
+            self.assertEqual(st, "REVIEWED_NO_MATCH", bm)
+            self.assertIn("not checked", why[0])
+
+    def test_core_list_match_still_excludes(self):
+        import boycott_screen as bs
+        ev, day = self.ev(finding="no_match", checked_on="2026-11-11", url="https://bl00d.money/")
+        ev["sources"]["afsc"]["finding"] = "match"
+        self.assertEqual(bs.compute_status(ev, day)[0], "EXCLUDED")
+
+    def test_label_shows_it(self):
+        b = dict(mode="flag", status="FLAGGED", screened=True, reasons=["listed by extra source: bl00d.money"],
+                 sources_checked=dict(bloodmoney=dict(finding="match", checked_on="2026-11-11",
+                                                      url="https://bl00d.money/company/abc")))
+        label, ref = rs.boycott_ref(b)
+        self.assertEqual(label, "FLAGGED")
+        self.assertIn("BL00D.MONEY https://bl00d.money/company/abc", ref)
+        clean = dict(mode="flag", status="REVIEWED_NO_MATCH", screened=True, reasons=[],
+                     sources_checked=dict(afsc=dict(finding="no_match", checked_on="2026-11-11", url="https://a.example")))
+        self.assertIn("BL00D.MONEY NOT CHECKED", rs.boycott_ref(clean)[1])
+
+
 class Marks(unittest.TestCase):
     def test_text_marks(self):
         out = rs.render([t49.FLAGGED, t49.TRADE])

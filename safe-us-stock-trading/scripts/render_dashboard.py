@@ -111,7 +111,8 @@ def money(x):
     if x is None:
         return "n/a"
     if not _num(x):
-        return str(x).split(":")[0]
+        word = str(x).split(":")[0]
+        return {"UNQUANTIFIED": "NO STOP SET", "BREACHED": "PAST ITS STOP"}.get(word, word)
     return f"-${-x:,.2f}" if x < 0 else f"${x:,.2f}"
 
 

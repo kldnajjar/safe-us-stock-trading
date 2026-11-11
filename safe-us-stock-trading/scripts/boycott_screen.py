@@ -17,12 +17,19 @@ Evidence JSON (--evidence FILE):
     "afsc":       {"finding": ..., "checked_on": ..., "url": ...},
     "whoprofits": {"finding": ..., "checked_on": ..., "url": ...},
     "sec":        {"finding": "no_match|match|unreachable", "checked_on": ..., "url": ...,
-                   "israel_hq": false, "material_israel_ops": false}
+                   "israel_hq": false, "material_israel_ops": false},
+    "bloodmoney": {"finding": "match|no_match", "checked_on": ..., "url": "https://bl00d.money/..."}   (optional, v5.0)
   },
   "etf": {"screened_weight_pct": 100, "excluded_weight_pct": 0, "flagged_weight_pct": 0}   (ETFs only)
 }
 ETF weights are percentages of the fund: each a finite number from 0 to 100, screened exactly 100,
 and excluded + flagged <= screened. Anything else is UNVERIFIED.
+
+v5.0: "bloodmoney" (https://bl00d.money/) is an optional EXTRA source. The site refuses automated
+readers, so it is checked in the user's own browser or by the user, and it is never required.
+A dated match on it FLAGS the name (in both strictness levels) and is shown with its link; it never
+excludes on its own and its absence never clears or blocks anything. An entry that is missing, old,
+undated, unreachable or not on bl00d.money counts as "not checked" and is reported as such.
 
   python3 boycott_screen.py --evidence EVIDENCE.json --as-of YYYY-MM-DD [--strictness strict|moderate] --out RESULT.json
 """
@@ -31,9 +38,35 @@ import argparse, datetime as dt, json, math
 SCHEMA = "boycott-result/1"
 SOURCES = ("ohchr", "bds", "afsc", "whoprofits", "sec")
 LIST_SOURCES = ("ohchr", "bds", "afsc", "whoprofits")
+EXTRA_SOURCES = {"bloodmoney": ("bl00d.money", "https://bl00d.money/")}      # optional; a match flags
 FINDINGS = ("match", "no_match", "unreachable")
 MAX_EVIDENCE_AGE_DAYS = 30
 RESULT_VALID_DAYS = 30
+
+
+def extra_findings(ev, as_of):
+    """Optional sources. Returns (matches, not_checked): names with a valid dated match, and names that
+    were not (validly) checked. Never raises and never makes a result UNVERIFIED."""
+    matches, missing = [], []
+    try:
+        today = dt.date.fromisoformat(as_of)
+    except (TypeError, ValueError):
+        return [], [n for n, _ in EXTRA_SOURCES.values()]
+    src = ev.get("sources") or {}
+    for key, (name, home) in EXTRA_SOURCES.items():
+        e = src.get(key)
+        ok = isinstance(e, dict) and e.get("finding") in ("match", "no_match") and str(e.get("url", "")).startswith(home)
+        if ok:
+            try:
+                d = dt.date.fromisoformat(e.get("checked_on", ""))
+                ok = d <= today and (today - d).days <= MAX_EVIDENCE_AGE_DAYS
+            except (TypeError, ValueError):
+                ok = False
+        if not ok:
+            missing.append(name)
+        elif e["finding"] == "match":
+            matches.append(name)
+    return matches, missing
 
 
 def compute_status(ev, as_of, strictness="strict"):
@@ -98,6 +131,9 @@ def compute_status(ev, as_of, strictness="strict"):
     if etf and etf["excluded_weight_pct"] > (0 if strict else 5):
         return "EXCLUDED", [f"{etf['excluded_weight_pct']}% of the ETF's weight is in excluded companies"]
     flags = []
+    extra, _ = extra_findings(ev, as_of)
+    if extra:
+        flags.append(f"listed by extra source: {', '.join(extra)} (flag only; not one of the five core sources)")
     if soft:
         flags.append(f"listed only by: {', '.join(soft)}")
     if sec["material_israel_ops"]:
@@ -106,7 +142,9 @@ def compute_status(ev, as_of, strictness="strict"):
         flags.append(f"ETF has {etf['excluded_weight_pct']}% excluded and {etf['flagged_weight_pct']}% flagged weight")
     if flags:
         return "FLAGGED", flags
-    return "REVIEWED_NO_MATCH", ["all five sources checked; nothing found (absence from a list is not proof of no involvement)"]
+    _, missing = extra_findings(ev, as_of)
+    note = f"; extra source not checked: {', '.join(missing)}" if missing else "; extra source bl00d.money also checked"
+    return "REVIEWED_NO_MATCH", ["all five sources checked; nothing found (absence from a list is not proof of no involvement)" + note]
 
 
 def screen(ev, as_of, strictness="strict"):

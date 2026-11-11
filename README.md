@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
 ![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
-![Tests: 437](https://img.shields.io/badge/tests-437%20passing-brightgreen)
+![Tests: 443](https://img.shields.io/badge/tests-443%20passing-brightgreen)
 ![Audited](https://img.shields.io/badge/money%20math-independently%20verified-brightgreen)
 
 [Status](#status-ready-for-paper-trading) · [Quick start](#quick-start) · [What you get](#what-you-get) · [Why NO TRADE](#why-youll-often-see-no-trade) · [How it works](#how-it-works) · [Configuration](#configuration) · [Safety design](#safety-design) · [Contributing](#contributing)
@@ -48,7 +48,7 @@ The engine is verified: an independent recomputation matched every dollar figure
 | 💸 **Real costs** | Any broker's fee schedule (percent, per share, flat or commission-free), separate sell fees, FX only when currency is actually converted, spread and slippage. Unverified fee schedules are labelled on every plan |
 | 🛡️ **Portfolio-wide limits** | Per-stock and per-ETF caps, sector caps (ETFs looked through), total open risk, cash floor, max positions |
 | ☪️ **Shariah screen, always on** | AAOIFI SS-21, MSCI Islamic (two series), S&P Shariah or Dow Jones Islamic, from a versioned and sourced registry, with purification in USD (always rounded up) |
-| ✊ **Boycott screen, always on** | UN OHCHR settlements database, BDS, AFSC Investigate, Who Profits, SEC filings; the status is computed from evidence, never typed in |
+| ✊ **Boycott screen, always on** | UN OHCHR settlements database, BDS, AFSC Investigate, Who Profits, SEC filings, plus bl00d.money as an optional extra (a match flags); the status is computed from evidence, never typed in |
 | 🔎 **Fresh, ranked, shown sources** | Every number is a ledger entry from a ranked source (official > wire/press > data sites), checked for freshness and the right site; two price sources must agree; company financials come only from SEC filings |
 | ❓ **Every NO BUY explained** | Every reason in plain words, the facts behind it (which list, which ratio, which source is stale), what would fix it, and what else is still needed |
 | 📈 **Signals** | Long-only momentum, earnings momentum, low volatility, trend and market filters from *151 Trading Strategies*; AVOID is refused |
@@ -78,7 +78,7 @@ YOUR OPTIONS:
   B. BUY 10 XYZ AT 50.00 LIMIT. ... [BOYCOTT ON BOYCOTT LIST / HALAL NOT HALAL]
   C. KEEP CASH. $0 RISK, $0 GAIN.
   RECOMMENDED: A. CLEAN ON BOTH SCREENS AND PASSES YOUR RISK RULES.
-  FLAGGED OPTIONS B: SHOWN BECAUSE YOU CHOSE FLAG. YOUR DECISION.
+  OPTIONS B: FAILED A CHECK. SHOWN BECAUSE YOU CHOSE FLAG. YOUR DECISION.
 
 WHAT TO DO NOW:
   1. IN YOUR APP: LIMIT BUY 19 GLDM AT 78.00, GOOD-TILL-CANCEL.
@@ -377,7 +377,7 @@ Claude's sandbox blocks most finance sites by default. Allowing `sec.gov`, `data
 │       ├── brokers.json              # broker fee profiles and templates
 │       ├── methodologies.json        # Shariah rules registry
 │       ├── sources.json              # ranked source registry and freshness rules
-│       └── test_*.py                 # 437 tests
+│       └── test_*.py                 # 443 tests
 ├── AUDIT-v4.8.md                     # verification and treasury audit record
 ├── docs/dashboard-preview.png
 ├── .github/                          # CI, issue and PR templates
@@ -407,8 +407,8 @@ It prints a JSON report and exits with code 0 only if every file is present, all
 | `test_dashboard.py` | Verbatim numbers, safety lines, escaping | 12 |
 | `test_v48_mandatory.py` | v4.8 with every gate on: screens, sources, market hours, signals, earnings, fees, journal, dashboard parity, one test per review finding | 109 |
 | `test_v49_actions.py` | v4.9: screens table with references, options and recommendation, flag labels, SKIPPED, `--budget`, Robinhood profile | 12 |
-| `test_v50_ingest.py` | v5.0: one-command data intake (CSV, ledger, signals), colour marks, one test per v5.0 audit finding | 13 |
-| **Total** | | **437** |
+| `test_v50_ingest.py` | v5.0: one-command data intake (CSV, ledger, signals), colour marks, one test per v5.0 audit finding, bl00d.money extra source | 19 |
+| **Total** | | **443** |
 
 The pre-v4.8 suites switch off the three v4.8 gates (screens, sources, market hours) with a short block at the top of each file, so each keeps testing the gate it was written for. Fixtures pin the engine's clock inside the test process; the command line can't set it.
 
