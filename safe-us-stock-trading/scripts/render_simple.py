@@ -450,13 +450,23 @@ def screen_rows(plans):
     return rows
 
 
+GREEN, YELLOW, RED = "\U0001F7E2", "\U0001F7E1", "\U0001F534"
+
+
+def mark(*labels):
+    """v5.0: one coloured dot for a line. Red = on a list / not halal, yellow = your call, green = good."""
+    if any(l in ("ON BOYCOTT LIST", "NOT HALAL") for l in labels):
+        return RED
+    return GREEN if all(l in ("NOT ON LISTS", "HALAL") for l in labels) else YELLOW
+
+
 def screen_table_lines(plans):
     rows = screen_rows(plans)
     if not rows:
         return []
     out = ["SCREENS (EVERY IDEA, WITH REFERENCES):"]
     for t, bl, br, hl, hr in rows:
-        out.append(f"  {t}: BOYCOTT {bl} | HALAL {hl}")
+        out.append(f"  {mark(bl, hl)} {t}: BOYCOTT {bl} | HALAL {hl}")
         out.append(f"    BOYCOTT REF: {br}")
         out.append(f"    HALAL REF: {hr}")
     return out + [""]
@@ -484,20 +494,24 @@ def option_rows(plans):
         else:
             why, _ = explain((d.get("reasons") or [""])[0])
             text = f"{t}: ENGINE SAYS NO. {why or (d.get('reasons') or ['?'])[0]}"
-        rows.append((L, text, labels, d in trades))
+        dot = (mark(bl, hl) if is_clean(d) else YELLOW) if d in trades else RED
+        rows.append((L, text, labels, d in trades, dot))
     L = next(letters)
-    rows.append((L, "KEEP CASH. $0 RISK, $0 GAIN.", "", True))
+    rows.append((L, "KEEP CASH. $0 RISK, $0 GAIN.", "", True, GREEN))
     return rows, rec or L
 
 
 def option_lines(plans):
     rows, rec = option_rows(plans)
     out = ["YOUR OPTIONS:"]
-    for L, text, labels, _ in rows:
-        out.append(f"  {L}. {text}" + (f" [{labels}]" if labels else ""))
-    rtext = next(t for L, t, _, _ in rows if L == rec)
-    out.append(f"  RECOMMENDED: {rec}. {'CLEAN ON BOTH SCREENS AND PASSES YOUR RISK RULES.' if 'KEEP CASH' not in rtext else 'NO CLEAN TRADE PASSES TODAY.'}")
-    flagged = [L for L, t, lab, ok in rows if ok and lab and ("ON BOYCOTT LIST" in lab or "NOT HALAL" in lab or "FLAGGED" in lab)]
+    for L, text, labels, _, dot in rows:
+        out.append(f"  {dot} {L}. {text}" + (f" [{labels}]" if labels else ""))
+    rtext = next(r[1] for r in rows if r[0] == rec)
+    rdot = next(r[4] for r in rows if r[0] == rec)
+    good = ("CLEAN ON BOTH SCREENS AND PASSES YOUR RISK RULES." if rdot == GREEN
+            else "NOT ON BOYCOTT LISTS. HALAL ONLY IF YOU ACCEPT IT. PASSES YOUR RISK RULES.")
+    out.append(f"  RECOMMENDED: {rec}. {good if 'KEEP CASH' not in rtext else 'NO CLEAN TRADE PASSES TODAY.'}")
+    flagged = [L for L, t, lab, ok, _ in rows if ok and lab and ("ON BOYCOTT LIST" in lab or "NOT HALAL" in lab or "FLAGGED" in lab)]
     if flagged:
         out.append(f"  FLAGGED OPTIONS {', '.join(flagged)}: SHOWN BECAUSE YOU CHOSE FLAG. YOUR DECISION.")
     return out + [""]
@@ -514,7 +528,7 @@ def action_lines(plans, events="", skipped=()):
 
     trades = [d for d in plans if d.get("verdict") == "TRADE" and plan_is_trade(d)]
     rows, rec = option_rows(plans)
-    rec_t = next((t for L, t, _, _ in rows if L == rec), "")
+    rec_t = next((r[1] for r in rows if r[0] == rec), "")
     trades = [d for d in trades if d.get("asset") == "tbill" or (f" {(d.get('ticker') or '').upper()} AT " in rec_t)]
     for d in trades:
         t = (d.get("ticker") or "?").upper()
@@ -551,7 +565,7 @@ def action_lines(plans, events="", skipped=()):
 
 
 def render(plans, market="", metals="", events="", signals=None, skipped=()):
-    lines = []
+    lines = [f"{GREEN} GOOD   {YELLOW} WAIT / YOUR CALL   {RED} STOP"]
     first = next((d for d in plans if d.get("profile")), None)
     if first:
         lines.append(f"RISK: {str(first.get('profile')).upper()}. HOLD: {str(first.get('horizon') or 'n/a').upper()}.")

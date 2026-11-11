@@ -3,31 +3,37 @@ name: safe-us-stock-trading
 description: Plan US stock, ETF and gold/silver trades for any investor on any broker. Asks how much money to trade and what to buy, then gives exact buy, sell and stop-loss prices sized to the user's own fees and risk level (short/medium/long, safe/balanced/aggressive), with news-driven market analysis, a boycott screen and a Shariah (halal/haram) screen on every idea, every number from fresh cited sources (shown in the output), the full reason for every NO BUY, and a simple plain-language output. Use when someone asks what stocks to buy or sell, for a market analysis, a trade plan, or gold/silver timing.
 ---
 
-# Safe US Stock Trading (v4.9)
+# Safe US Stock Trading (v5.0)
 
 Act as a market analyst with a CFO's discipline: protect capital, size every order against the user's real fees, and base every call on fresh, cited evidence. This is research support, not licensed financial, tax or religious advice. The user decides and places every trade. Never log into a broker app or place orders.
 
 **NO TRADE is always an acceptable answer. Never push the user to invest the whole amount.**
 
-**Three rules that always apply (v4.8, enforced in code):**
+**Five rules that always apply:**
 1. **Both screens run on every idea, every session**: the boycott screen (section 7) and the Shariah screen (section 7b). The user chooses *exclude* (default) or *flag only*; there is no "off".
    - **Exclude:** a name that fails is never planned; it appears as NO BUY with the reason and reference.
-   - **Flag only (v4.9):** every screened idea is sized and shown as an option, failing ones included, each labelled with its result and the reference behind it: "BOYCOTT: ON BOYCOTT LIST, listed by AFSC <link>" or "HALAL: NOT HALAL, AAOIFI SS-21, interest-bearing debt 41% > 30%, <link>". The user decides. The recommendation always goes to the clean option (or cash), never a flagged one. `size_trade.py` refuses `off` and refuses flag mode without a real result file.
+   - **Flag only :** every screened idea is sized and shown as an option, failing ones included, each labelled with its result and the reference behind it: "BOYCOTT: ON BOYCOTT LIST, listed by AFSC <link>" or "HALAL: NOT HALAL, AAOIFI SS-21, interest-bearing debt 41% > 30%, <link>". The user decides. The recommendation always goes to the clean option (or cash), never a flagged one. `size_trade.py` refuses `off` and refuses flag mode without a real result file.
 2. **Every number comes from a fresh, named, ranked source** recorded in the source ledger and passed by `sources_check.py` (section 8a). Stale, conflicting or unranked data is refreshed or dropped, never reported. Every output shows where each number came from and when.
 3. **Every NO BUY and WAIT says why**, every reason, in plain words, with what would fix it (section 12). Never write "no buy" without the reason.
-4. **Every output starts with WHAT TO DO NOW (v4.9)**: numbered steps the user can follow in the app (limit buy, stop after fill, sell orders), or, with no buy, what to do instead and the closest idea. `render_simple.py` and `render_dashboard.py` print it from the engine numbers.
-5. **Screen before you show (v4.9)**: only pass a ticker to the engine and the renderers once both screens have result files for it. A ticker you drop earlier (e.g. its top holdings are already on a boycott list) goes in `--skipped "TICKER|why"`, one line. Never show a candidate as "SCREEN NOT RUN".
+4. **Every output starts with WHAT TO DO NOW **: numbered steps the user can follow in the app (limit buy, stop after fill, sell orders), or, with no buy, what to do instead and the closest idea. `render_simple.py` and `render_dashboard.py` print it from the engine numbers.
+5. **Screen before you show **: only pass a ticker to the engine and the renderers once both screens have result files for it. A ticker you drop earlier (e.g. its top holdings are already on a boycott list) goes in `--skipped "TICKER|why"`, one line. Never show a candidate as "SCREEN NOT RUN".
 
-## Fast path (v4.9): result in about 5 minutes
+## The run, on one card (v5.0)
 
-Users wait for this. Keep the whole run lean:
-- **At most 2 candidates.** Pick them from the regime first (signals market state DOWN means gold/cash first; UP means a broad screened ETF or a large cap). Drop anything that obviously fails a screen or doubles an existing concentration before researching it, with a `--skipped` line.
-- **4–6 searches** for the regime (Fed, latest big release, the week's market move, the asset's news), run in parallel.
-- **Quotes and a year of prices in one browser call**: open nasdaq.com in the built-in browser, then use `fetch('https://api.nasdaq.com/api/quote/T/info?assetclass=etf|stocks')` for the live quote and `/historical?...&limit=300` for daily rows; take the second quote from stockanalysis.com. Ledger the quote right after reading it (15-minute limit).
-- **Screens in one pass**: the Who Profits list (all pages, one in-page fetch), the BDS targets page, AFSC company pages by slug, OHCHR's latest list, and the SEC filing index.
-- **Size with `--budget`** set to the amount the user gave (A1), so the order never exceeds it.
-- Render once, publish the dashboard once.
+Follow these eight steps in order. The numbered sections below are the reference for each step; read a section only when its step needs it.
 
+| # | Step | How | Section |
+|---|---|---|---|
+| 1 | Check the engine | `run_checks.py` (silent) | 0a |
+| 2 | Ask | one question at a time; platform and tax residency every session | 0b |
+| 3 | State | `portfolio_state.py` on what the app shows | 6a |
+| 4 | Market | 4–6 searches run together: Fed, latest big release, this week's move, the asset's news. Ledger each one. | 8, 9 |
+| 5 | Pick **at most 2 candidates** | market DOWN (signals) means gold or cash first; UP means a broad screened ETF or a large cap. Drop anything that doubles what the user already holds. Dropped names go in `--skipped`. | 11 |
+| 6 | Data, **one browser call** | run `scripts/browser_fetch.js` on a nasdaq.com tab with the candidates + the market fund, save the result as `DATA.json`, then `ingest.py --data DATA.json --ledger LEDGER.json --market FUND`. It writes the price files, ledgers the quote and history, and runs the signals. Add the second quote source by hand (0.5% cross-check). | 4, 8a, 8b |
+| 7 | Screen **both** candidates fully, then size | boycott (AFSC fund search first for ETFs, then Who Profits all pages in one in-page fetch, BDS, OHCHR, SEC) and Shariah; then `size_trade.py --budget AMOUNT`. Never show a ticker whose screens did not run. | 7, 7b, 6b |
+| 8 | Show | `render_simple.py` then `render_dashboard.py`, once each. Publish the dashboard. | 12 |
+
+Accuracy comes from the engine, not from more searching: quote under 15 minutes old from two sources, every number in the ledger, screens with evidence files. Speed comes from doing less: two candidates, one data call, no re-runs. Re-read the quote right before step 7 if more than 10 minutes passed.
 
 ## 0. Start of session
 
@@ -148,7 +154,7 @@ These limits are design defaults, not validated optimal allocations.
 
 ## 2. Platform and fees (`scripts/brokers.json`)
 
-- **Built-in profiles (v4.9):** `bank-al-etihad-jo` (0.5% per order, $0.50 min, $30 max, user-provided) and `robinhood` (commission-free US stocks/ETFs, verified 2026-11-09 against Robinhood's fee page; tiny SEC/FINRA fees on sells are covered by `--friction-bps`; uninvested cash may earn interest, so flag purification when the Shariah screen is on). US Robinhood accounts are for US residents.
+- **Built-in profiles :** `bank-al-etihad-jo` (0.5% per order, $0.50 min, $30 max, user-provided) and `robinhood` (commission-free US stocks/ETFs, verified 2026-11-09 against Robinhood's fee page; tiny SEC/FINRA fees on sells are covered by `--friction-bps`; uninvested cash may earn interest, so flag purification when the Shariah screen is on). US Robinhood accounts are for US residents.
 - **More than one platform:** ask which account this trade is for (A5), build that account's state only (cash, holdings and orders as that app shows them), and size against it. Never mix cash or holdings across apps; mention holdings in the other app only for sector and concentration context the user gives.
 - Every fee is charged **per order** by the engine, from a broker profile (`--broker ID`) or explicit flags. There is no default fee schedule: without one, the engine returns NO TRADE.
 - Fee models:
@@ -700,14 +706,16 @@ Flag each one; label it **Verified** only with a current source.
 
 ## 12. Output
 
-### Order of the output (v4.9)
+### Order of the output (v5.0)
 
-1. **SCREENS**: one row per idea: boycott result + reference (which list, link, date checked), halal result + reference (methodology, the failed ratio or the structural reason, link).
-2. **YOUR OPTIONS**: every idea as a lettered option with its engine numbers and labels, plus KEEP CASH, and one RECOMMENDED letter (a clean option that passes the risk rules, else cash). In flag mode, flagged options are listed and marked "your decision".
-3. **WHAT TO DO NOW**: numbered app steps for the recommended option.
-4. Details per idea, then sources.
+Text and dashboard follow the same order, built by the renderers from the engine files (never by hand):
 
-`render_simple.py` and `render_dashboard.py` build 1–3 from the engine files; you never write them by hand.
+1. **Colour key.** 🟢 good / can win · 🟡 wait / your call · 🔴 stop / can lose. On the dashboard blue is plain info, and every colour also carries a sign (`+ ! x i`) so it reads without colour.
+2. **TODAY** (dashboard): one coloured answer: BUY X, YOUR CALL, or NO BUY TODAY. KEEP CASH.
+3. **DO THIS NOW**: numbered app steps for the recommended option.
+4. **YOUR CHOICES**: every idea as a lettered option with PAY / CAN LOSE / CAN WIN from the engine, its boycott and halal labels, plus KEEP CASH. One BEST PICK: a buy that is clean on both screens and passes the risk rules, else cash. In flag mode a failing name is marked YOUR CALL and is never the best pick.
+5. **CHECKS**: boycott and halal result per idea with the proof (which list and link; methodology and the failed ratio).
+6. **YOUR MONEY**, then the full numbers per idea, skipped names and sources.
 
 ### Simple (default): plain "caveman" style
 
@@ -789,21 +797,21 @@ Keep the safety lines even in the simplest output:
 
 ### Dashboard (default, after the simple text)
 
-Every run also produces one self-contained HTML page from the same engine files: portfolio and limits used, one card per idea (BUY / WAIT / NO BUY with the reason), holdings, sector exposure, events, notes and sources. It copies the engine's numbers and keeps every safety line; it never computes a level or a size.
+One self-contained HTML page from the same engine files, in simple words. It copies the engine's numbers and keeps every safety line; it never computes a level or a size.
 
 ```
 python3 "$SKILL_DIR/scripts/render_dashboard.py" --plans PLAN1.json PLAN2.json \
   --state ACTUAL.json [--projected PROJECTED.json] \
   --market "CALM. FED WAIT." --metals "WAIT." --events "JOBS FRI. CPI TUE." \
-  [--note "NVDA: fails boycott screen (AFSC)"] [--source "Title|https://..."] \
+  [--skipped "XYZ|why dropped"] [--note "NVDA: on AFSC list"] [--source "Title|https://..."] \
   --title "Trade plan YYYY-MM-DD" --out dashboard.html
 ```
 
-- Pass every plan from this run, including NO TRADE and WATCHLIST ones, so the page shows why each idea was dropped.
-- Pass `--projected` when more than one idea was accepted; the sector chart then shows plans as reserved orders, never as holdings.
-- Use `--note` for holdings-review findings (a holding that now fails a screen, a missing stop) and `--source` for each cited source.
-- Publish the file as an artifact when the session can (otherwise send the file). Reuse the same file path within a session so the link updates; start a new one per session. It is a snapshot: levels are valid only for the quote time printed on each card.
-- The page loads nothing external and escapes all text, so news headlines or ticker strings can't inject markup.
+- Write `--market`, `--metals`, `--events` and every `--note` in short plain words (a 12-year-old should follow them). No jargon: say "price fell under its long average", not "below the 200-DMA".
+- Pass every screened plan, including NO TRADE and WATCHLIST ones. The full numbers for each idea sit in a fold at the bottom; only the best pick is open.
+- Pass `--projected` when more than one idea was accepted.
+- Publish the file as an artifact when the session can (otherwise send the file). Reuse the same file path within a session so the link updates. It is a snapshot: levels are valid only for the quote time shown.
+- The page loads nothing external and escapes all text.
 
 ### Detailed (only when asked)
 

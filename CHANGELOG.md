@@ -4,6 +4,18 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### v5.0: simple, colour-coded dashboard; one-call data intake; one-card run
+
+**Changed**
+- **Dashboard rebuilt in simple words.** Order: TODAY (one coloured answer) → DO THIS NOW → YOUR CHOICES (PAY / CAN LOSE / CAN WIN per option, BEST PICK or YOUR CALL) → CHECKS (boycott and halal with proof links) → YOUR MONEY → full numbers in folds → sources.
+- **Colour always means the same thing** and carries a sign so it reads without colour: green `+` good / can win, yellow `!` wait / your call, red `x` stop / can lose, blue `i` info. Risk meters turn yellow and red as they fill; gains are green and losses red.
+- Text output opens with the colour key and marks every check and option line with 🟢 🟡 🔴.
+- SKILL.md opens with an eight-step run card; rules list fixed to five.
+
+**Added**
+- `browser_fetch.js` + `ingest.py`: one browser call returns the quote and a year of daily prices for every ticker; one command writes the price files, ledgers them and runs the signals.
+- `test_v50_ingest.py` (4 tests). 428 tests pass.
+
 ### v4.9: clear options, flag labels with references, budget cap, Robinhood
 
 **Added**
