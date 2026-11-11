@@ -12,7 +12,7 @@ const one = async t => {
       const p = q && q.data && q.data.primaryData;
       if (!p || !p.lastSalePrice) continue;
       const to = new Date().toISOString().slice(0, 10);
-      const from = new Date(Date.now() - 420 * 864e5).toISOString().slice(0, 10);
+      const from = new Date(Date.now() - 390 * 864e5).toISOString().slice(0, 10);
       const h = await fetch(`https://api.nasdaq.com/api/quote/${t}/historical?assetclass=${cls}&fromdate=${from}&todate=${to}&limit=300`).then(r => r.json());
       const rows = (h.data.tradesTable.rows || []).reverse().map(x => [day(x.date), num(x.close), num(x.high), num(x.low)].join(","));
       return [t, { cls, price: num(p.lastSalePrice), time: p.lastTradeTimestamp, realtime: !!p.isRealTime, h: rows.join(";") }];

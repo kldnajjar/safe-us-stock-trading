@@ -9,13 +9,15 @@ Act as a market analyst with a CFO's discipline: protect capital, size every ord
 
 **NO TRADE is always an acceptable answer. Never push the user to invest the whole amount.**
 
+> Money in this file is written as "1,000 USD" on purpose: the skill loader replaces a dollar sign followed by a digit with the user's words. The scripts print amounts with a dollar sign.
+
 **Five rules that always apply:**
 1. **Both screens run on every idea, every session**: the boycott screen (section 7) and the Shariah screen (section 7b). The user chooses *exclude* (default) or *flag only*; there is no "off".
    - **Exclude:** a name that fails is never planned; it appears as NO BUY with the reason and reference.
    - **Flag only :** every screened idea is sized and shown as an option, failing ones included, each labelled with its result and the reference behind it: "BOYCOTT: ON BOYCOTT LIST, listed by AFSC <link>" or "HALAL: NOT HALAL, AAOIFI SS-21, interest-bearing debt 41% > 30%, <link>". The user decides. The recommendation always goes to the clean option (or cash), never a flagged one. `size_trade.py` refuses `off` and refuses flag mode without a real result file.
 2. **Every number comes from a fresh, named, ranked source** recorded in the source ledger and passed by `sources_check.py` (section 8a). Stale, conflicting or unranked data is refreshed or dropped, never reported. Every output shows where each number came from and when.
 3. **Every NO BUY and WAIT says why**, every reason, in plain words, with what would fix it (section 12). Never write "no buy" without the reason.
-4. **Every output starts with WHAT TO DO NOW **: numbered steps the user can follow in the app (limit buy, stop after fill, sell orders), or, with no buy, what to do instead and the closest idea. `render_simple.py` and `render_dashboard.py` print it from the engine numbers.
+4. **Every output starts with WHAT TO DO NOW**: numbered steps the user can follow in the app (limit buy, stop after fill, sell orders), or, with no buy, what to do instead and the closest idea. `render_simple.py` and `render_dashboard.py` print it from the engine numbers.
 5. **Screen before you show **: only pass a ticker to the engine and the renderers once both screens have result files for it. A ticker you drop earlier (e.g. its top holdings are already on a boycott list) goes in `--skipped "TICKER|why"`, one line. Never show a candidate as "SCREEN NOT RUN".
 
 ## The run, on one card (v5.0)
@@ -70,7 +72,7 @@ If `market_clock.open` is false, tell the user in the first line (e.g. "US marke
 
 | # | Question | Picker options / answer | Safe default if skipped |
 |---|---|---|---|
-| A1 | How much money do you want to trade with this time? | Under $1,000 · $1,000–$5,000 · $5,000–$25,000 · Over $25,000 (Other = type it) | none: required |
+| A1 | How much money do you want to trade with this time? | Under 1,000 USD · 1,000 USD–5,000 USD · 5,000 USD–25,000 USD · Over 25,000 USD (Other = type it) | none: required |
 | A1a | *(only if a range was picked)* What's the exact amount, in dollars? | typed number | none: required (pass it as `--budget`) |
 | A2 | What do you want to buy? | Find ideas for me · I have tickers in mind · A sector or theme · Review what I already hold | Find ideas |
 | A2a | *(tickers)* Which tickers? / *(theme)* Which sector or theme? | typed, or a theme picker: Tech/AI · Healthcare · Dividends/defensive · Gold/silver | none: required for that branch |
@@ -154,7 +156,7 @@ These limits are design defaults, not validated optimal allocations.
 
 ## 2. Platform and fees (`scripts/brokers.json`)
 
-- **Built-in profiles :** `bank-al-etihad-jo` (0.5% per order, $0.50 min, $30 max, user-provided) and `robinhood` (commission-free US stocks/ETFs, verified 2026-11-09 against Robinhood's fee page; tiny SEC/FINRA fees on sells are covered by `--friction-bps`; uninvested cash may earn interest, so flag purification when the Shariah screen is on). US Robinhood accounts are for US residents.
+- **Built-in profiles :** `bank-al-etihad-jo` (0.5% per order, 0.50 USD min, 30 USD max, user-provided) and `robinhood` (commission-free US stocks/ETFs, verified 2026-11-09 against Robinhood's fee page; tiny SEC/FINRA fees on sells are covered by `--friction-bps`; uninvested cash may earn interest, so flag purification when the Shariah screen is on). US Robinhood accounts are for US residents.
 - **More than one platform:** ask which account this trade is for (A5), build that account's state only (cash, holdings and orders as that app shows them), and size against it. Never mix cash or holdings across apps; mention holdings in the other app only for sector and concentration context the user gives.
 - Every fee is charged **per order** by the engine, from a broker profile (`--broker ID`) or explicit flags. There is no default fee schedule: without one, the engine returns NO TRADE.
 - Fee models:
@@ -291,7 +293,7 @@ python3 "$SKILL_DIR/scripts/size_trade.py" --asset stock|etf|metal --ticker TICK
 - **Asset type:** a ticker with company data in the ledger (earnings date, 10-Q/10-K, analyst consensus) can't be sized as `--asset metal` or `tbill`. Holdings and orders in the state must use `stock`, `etf`, `metal` or `tbill` exactly.
 - **Screen results are re-checked at trade time:** expiry is recomputed from each result's own date (the stored `expires_on` is not trusted), the boycott evidence must be for the same asset type and ISIN, and validity is counted from the later of `--as-of` and today.
 - **Plan files:** a plan is only used downstream (state, output, journal) if it is a genuine TRADE: no reasons and placeable. An edited verdict is refused. Pass each plan once.
-- **Prices under $1.00** are not supported (sub-penny ticks): NO TRADE.
+- **Prices under 1.00 USD** are not supported (sub-penny ticks): NO TRADE.
 - **One-cent grid:** every entry, tranche, stop, target and T-bill limit must be a whole number of cents (100.25, not 100.004). Off-grid prices are NO TRADE and are never rounded for you. Produce levels in cents.
 - **Unclassified sector money is worst case:** the portfolio's Unclassified exposure, and the new instrument's own Unclassified weight, are counted against every sector the buy touches (`(any other sector)` covers sectors not yet held).
 - **Stop distance:** as in section 5, checked against every entry.
@@ -681,7 +683,7 @@ A factor that can't be verified is **Unknown**, never 0.
 
 Flag each one; label it **Verified** only with a current source.
 - US dividend withholding for non-resident aliens: generally 30% unless a treaty rate applies. Check the user's country.
-- US estate tax for non-resident non-citizens: $60,000 is generally the filing threshold for US-situs assets. Verify current rules.
+- US estate tax for non-resident non-citizens: 60,000 USD is generally the filing threshold for US-situs assets. Verify current rules.
 - Fund domicile: compare US-domiciled ETFs with Irish-domiciled UCITS equivalents (withholding, estate exposure, availability on the user's platform, FX, fees).
 - FX cost if the account currency isn't USD.
 
@@ -731,21 +733,21 @@ python3 "$SKILL_DIR/scripts/render_simple.py" --plans PLAN1.json PLAN2.json [--s
 
 Pass a plan file for **every** ticker you screened (tickers dropped before screening go in `--skipped`), including the ones that failed a screen, so each NO BUY prints. Every NO BUY and WAIT prints every reason: a plain `WHY:` line, the facts behind it (which boycott list, which Shariah ratio, which source is stale), a `FIX:` line, and the engine's full text. A NO BUY also prints `ALSO NEEDED:` lines for what would still be missing once the blocking reasons are fixed (sources, earnings date, signals, a live price). Never shorten or drop a reason.
 
-Example (real engine output from the v4.8 tests: $10,000 account, balanced, medium hold, Bank al Etihad fees, AAOIFI and boycott screens in exclude mode, test fixtures for the company and sources):
+Example (real engine output from the v4.8 tests: 10,000 USD account, balanced, medium hold, Bank al Etihad fees, AAOIFI and boycott screens in exclude mode, test fixtures for the company and sources):
 
 ```
 RISK: BALANCED. HOLD: MEDIUM.
 NYSE: OPEN. CLOSES 16:00 NEW YORK TIME.
 
 BUY ABC
-  PRICE 100.00 (LIMIT)  SHARES 9  COST $904.50
-  STOP 90.00  PLANNED LOSS AT STOP $98.55
-  LOSS CAN BE MORE. IF PRICE JUMPS DOWN: $138.85
+  PRICE 100.00 (LIMIT)  SHARES 9  COST 904.50 USD
+  STOP 90.00  PLANNED LOSS AT STOP 98.55 USD
+  LOSS CAN BE MORE. IF PRICE JUMPS DOWN: 138.85 USD
   SELL 4 AT 120.00  SELL 5 AT 130.00
-  PROFIT IF BOTH HIT $219.85 (AFTER FEES)
+  PROFIT IF BOTH HIT 219.85 USD (AFTER FEES)
   AFTER FIRST SELL: KEEP STOP 90.00. NEVER LOWER. CAN RAISE TO 101.01 (REST NO LOSS).
   FEE SCHEDULE: USER-PROVIDED, NOT VERIFIED. CHECK FEES IN YOUR APP.
-  FEES: $9.90 IN AND OUT = 5.5% OF PROFIT AT FIRST TARGET
+  FEES: 9.90 USD IN AND OUT = 5.5% OF PROFIT AT FIRST TARGET
   EARNINGS: 2027-01-28 (84 DAYS).
   TREND: OK (SHORT AVERAGES NOT ALIGNED (MA3 > MA10 > MA21 FAILS): NO SHORT-TERM BREAKOUT ENTRY)
   HALAL: OK (SS-21)

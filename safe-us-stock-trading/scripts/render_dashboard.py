@@ -166,87 +166,93 @@ def linkify(text):
     return " ".join(out)
 
 
-def _trades(plans):
-    return [d for d in plans if d.get("verdict") == "TRADE" and _plan_is_trade(d)]
-
-
 def best_pick(plans):
-    """Same rule as the text output: the first buy that is clean on both screens, else None (cash)."""
-    return next((d for d in _trades(plans) if d.get("asset") != "tbill" and _rs.is_clean(d)), None)
+    """Same rule as the text output (render_simple.recommended_plan): a clean price trade, else None (cash)."""
+    return _rs.recommended_plan(plans)
 
 
-def _profit(d):
-    pe = d.get("partial_exit_plan") or {}
-    return pe.get("combined_net_profit") if pe.get("feasible") else d.get("net_profit_full_exit_t1")
+def _chips(d):
+    bl, _ = _rs.boycott_ref(d.get("boycott"))
+    hl, _ = _rs.halal_ref(d.get("shariah"))
+    return (chip(bl if "BOYCOTT" in bl else f"BOYCOTT: {bl}", tone(bl))
+            + chip(hl if "HALAL" in hl else f"HALAL: {hl}", tone(hl)))
+
+
+def _buy_say(d):
+    tr = d.get("tranches") or [{}]
+    if len(tr) > 1:
+        return (f'{e(d.get("shares"))} shares in {len(tr)} steps: '
+                + ", ".join(f'{e(x.get("shares"))} at {px(x.get("price"))}' for x in tr))
+    return f'{e(d.get("shares"))} shares at {px(tr[0].get("price"))} or lower'
+
+
+def _nums(rows):
+    return '<div class="nums">' + "".join(
+        f'<div><div class="k">{e(k)}</div><div class="v {c}">{e(v)}</div></div>' for k, v, c in rows) + "</div>"
 
 
 def hero(plans):
     d = best_pick(plans)
-    if d:
+    if d is not None:
         t = (d.get("ticker") or "?").upper()
-        tr = (d.get("tranches") or [{}])[0]
         cost = (d.get("total_order_value") or 0) + (d.get("total_buy_fees") or 0)
+        rl, ra = _rs.plan_risk(d)
+        at = " (at your review price, not an auto sell)" if d.get("horizon") == "long" else ""
         return (f'<div class="hero ok"><div class="k ok">TODAY</div><div class="big ok">BUY {e(t)}</div>'
-                f'<div class="say">Buy {e(d.get("shares"))} at {px(tr.get("price"))} or lower. Pay {money(cost)}. '
-                f'<b class="bad">Can lose {money(get(d, "downside", "executable_stop_downside") or get(d, "downside", "long_term_review_level_downside"))}</b>. '
-                f'<b class="ok">Can win {money(_profit(d))}</b>. Not on boycott lists. '
+                f'<div class="say">{_buy_say(d)}. Pay {money(cost)}. '
+                f'<b class="bad">Can lose {money(ra)}</b>{at}. '
+                f'<b class="ok">Can win {money(_rs.plan_profit(d))}</b>. Not on boycott lists. '
                 + ("Halal only if you accept it (see CHECKS)." if _rs.halal_ref(d.get("shariah"))[0] != "HALAL" else "Halal.")
                 + "</div></div>")
-    flagged = [x for x in _trades(plans) if x.get("asset") != "tbill"]
-    if flagged:
-        names = ", ".join((x.get("ticker") or "?").upper() for x in flagged)
+    yours = [x for x in plans if _rs.plan_kind(x) in ("buy", "park")]
+    if yours:
+        names = ", ".join((x.get("ticker") or "?").upper() for x in yours)
         return (f'<div class="hero warn"><div class="k warn">TODAY</div><div class="big warn">YOUR CALL: {e(names)}</div>'
-                '<div class="say">These fit your money rules, but a check failed or was not run. '
+                '<div class="say">These fit your money rules, but a check failed, was not run, or the fund pays interest. '
                 'Look at CHECKS below. Keeping cash is also fine.</div></div>')
     return ('<div class="hero warn"><div class="k warn">TODAY</div><div class="big warn">NO BUY TODAY. KEEP CASH.</div>'
             '<div class="say">Nothing passed today. Keeping cash is a good result.</div></div>')
 
 
 def option_cards(plans):
-    pick = best_pick(plans)
-    trades = sorted([d for d in _trades(plans) if d.get("asset") != "tbill"], key=lambda x: not _rs.is_clean(x))
-    others = [d for d in plans if d not in trades and d.get("asset") != "tbill" or d.get("verdict") != "TRADE" and d not in trades]
-    seen, rest = set(), []
-    for d in others:
-        if id(d) not in seen:
-            seen.add(id(d)); rest.append(d)
-    out, letters = [], iter("ABCDEFGHIJ")
-    for d in trades + rest:
-        L, t = next(letters), (d.get("ticker") or d.get("asset") or "?").upper()
-        bl, _ = _rs.boycott_ref(d.get("boycott"))
-        hl, _ = _rs.halal_ref(d.get("shariah"))
-        chips = (chip(bl if "BOYCOTT" in bl else f"BOYCOTT: {bl}", tone(bl))
-                 + chip(hl if "HALAL" in hl else f"HALAL: {hl}", tone(hl)))
-        if d in trades:
+    """One card per option, in the same order and with the same letters as the text output."""
+    rows, rec = _rs.option_rows(plans)
+    out = []
+    for L, _text, _labels, _ok, _dot, d in rows:
+        if d is None:
+            cls = "ok" if rec == L else "info"
+            out.append(f'<div class="opt t-{cls}"><span class="tag">{chip("BEST PICK" if rec == L else "SAFE", cls)}</span>'
+                       f'<h3>{L}. KEEP CASH</h3><div class="sub">Do nothing today</div>'
+                       + _nums([("PAY", "$0.00", ""), ("CAN LOSE", "$0.00", ""), ("CAN WIN", "$0.00", "")]) + "</div>")
+            continue
+        t, kind = (d.get("ticker") or d.get("asset") or "?").upper(), _rs.plan_kind(d)
+        if kind == "buy":
             clean = _rs.is_clean(d)
-            cls = "ok" if d is pick else ("ok" if clean else "warn")
-            tag = chip("BEST PICK", "ok") if d is pick else (chip("OK", "ok") if clean else chip("YOUR CALL", "warn"))
-            tr = (d.get("tranches") or [{}])[0]
+            cls = "ok" if clean else "warn"
+            tag = chip("BEST PICK", "ok") if rec == L else (chip("OK", "ok") if clean else chip("YOUR CALL", "warn"))
             cost = (d.get("total_order_value") or 0) + (d.get("total_buy_fees") or 0)
-            loss = get(d, "downside", "executable_stop_downside") or get(d, "downside", "long_term_review_level_downside")
+            _rl, ra = _rs.plan_risk(d)
+            lose = "CAN LOSE (AT REVIEW PRICE)" if d.get("horizon") == "long" else "CAN LOSE"
             out.append(f'<div class="opt t-{cls}"><span class="tag">{tag}</span><h3>{L}. BUY {e(t)}</h3>'
-                       f'<div class="sub">{e(d.get("shares"))} shares at {px(tr.get("price"))} or lower</div>'
-                       f'<div class="nums"><div><div class="k">PAY</div><div class="v">{money(cost)}</div></div>'
-                       f'<div><div class="k">CAN LOSE</div><div class="v bad">{money(loss)}</div></div>'
-                       f'<div><div class="k">CAN WIN</div><div class="v ok">{money(_profit(d))}</div></div></div>'
-                       f'<div class="chips">{chips}</div>'
+                       f'<div class="sub">{_buy_say(d)}</div>'
+                       + _nums([("PAY", money(cost), ""), (lose, money(ra), "bad"),
+                                ("CAN WIN", money(_rs.plan_profit(d)), "ok")])
+                       + f'<div class="chips">{_chips(d)}</div>'
                        + ('' if clean else '<div class="why warn">Failed a check. Shown because you chose FLAG. You decide.</div>')
                        + '</div>')
+        elif kind == "park":
+            cost = (d.get("order_value") or 0) + (d.get("buy_fee") or 0)
+            out.append(f'<div class="opt t-warn"><span class="tag">{chip("YOUR CALL", "warn")}</span>'
+                       f'<h3>{L}. PARK CASH IN {e(t)}</h3><div class="sub">{e(d.get("shares"))} shares. Pays interest. Not a price trade.</div>'
+                       + _nums([("PAY", money(cost), ""), ("MAY EARN (GUESS)", money(d.get("expected_net_return")), "")])
+                       + f'<div class="chips">{_chips(d)}</div></div>')
         else:
             why, fix = _rs.explain((d.get("reasons") or [""])[0])
-            wait = d.get("verdict") == "WATCHLIST"
-            cls = "warn" if wait else "bad"
-            out.append(f'<div class="opt t-{cls}"><span class="tag">{chip("WAIT" if wait else "NO BUY", cls)}</span>'
+            cls = "warn" if kind == "wait" else "bad"
+            out.append(f'<div class="opt t-{cls}"><span class="tag">{chip("WAIT" if kind == "wait" else "NO BUY", cls)}</span>'
                        f'<h3>{L}. {e(t)}</h3><div class="why {cls}"><b>Why:</b> {e(why or (d.get("reasons") or ["?"])[0])}</div>'
                        + (f'<div class="why"><b>Fix:</b> {e(fix)}</div>' if fix else '')
-                       + f'<div class="chips" style="margin-top:8px">{chips}</div></div>')
-    L = next(letters)
-    cash_cls = "info" if pick else "ok"
-    out.append(f'<div class="opt t-{cash_cls}"><span class="tag">{chip("SAFE" if pick else "BEST PICK", cash_cls)}</span>'
-               f'<h3>{L}. KEEP CASH</h3><div class="sub">Do nothing today</div>'
-               f'<div class="nums"><div><div class="k">PAY</div><div class="v">$0.00</div></div>'
-               f'<div><div class="k">CAN LOSE</div><div class="v">$0.00</div></div>'
-               f'<div><div class="k">CAN WIN</div><div class="v">$0.00</div></div></div></div>')
+                       + f'<div class="chips" style="margin-top:8px">{_chips(d)}</div></div>')
     return '<div class="grid">' + "".join(out) + "</div>"
 
 
@@ -493,7 +499,8 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     skipped = list(skipped) + [f"{(x.get('ticker') or '?').upper()}|not researched (checks not run), not a candidate"
                                for x in plans if _rs.never_researched(x)]
     plans = [x for x in plans if not _rs.never_researched(x)]
-    plans = sorted(plans, key=lambda x: ({"TRADE": 0, "WATCHLIST": 1}.get(x.get("verdict"), 2), not _rs.is_clean(x)))
+    kinds = {"buy": 0, "park": 1, "wait": 2, "no": 3}
+    plans = sorted(plans, key=lambda x: (kinds[_rs.plan_kind(x)], not _rs.is_clean(x)))
     first = next((p for p in plans if p.get("profile")), {})
     asof = next((get(p, "quote", "time") for p in plans if get(p, "quote", "time")), "")
     p = [f'<h1>{e(title)}</h1><div class="sub">Risk {e(str(first.get("profile") or "n/a").upper())} · '

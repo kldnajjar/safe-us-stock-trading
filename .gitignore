@@ -45,3 +45,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Session data pulled by browser_fetch.js / ingest.py, and rendered pages
+DATA*.json
+/*.csv
+safe-us-stock-trading/scripts/[A-Z]*.csv
+dashboard*.html

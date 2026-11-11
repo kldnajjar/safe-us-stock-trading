@@ -11,21 +11,35 @@ Nothing is estimated: a ticker with an error, no rows or a bad quote time is rep
 Prints one JSON summary: per ticker the price, quote time (ISO, New York), rows, last day, ledger
 status and the signals hint. Still do by hand: the second quote source (0.5% cross-check).
 """
-import argparse, datetime as dt, json, os, subprocess, sys
-from zoneinfo import ZoneInfo
+import argparse, datetime as dt, json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-NY = ZoneInfo("America/New_York")
+sys.path.insert(0, HERE)
+import market_clock as mc  # noqa: E402  (same New York clock as the engine; no tz database needed)
 URL_Q = "https://www.nasdaq.com/market-activity/{kind}/{t}"
 URL_H = "https://api.nasdaq.com/api/quote/{T}/historical?assetclass={cls}"
 
 
+def _ny(naive):
+    """A New York wall-clock time -> aware datetime with the right offset (EST -5 or EDT -4)."""
+    for off in (-5, -4):
+        aware = naive.replace(tzinfo=dt.timezone(dt.timedelta(hours=off)))
+        if mc.ny_offset_hours(aware.astimezone(dt.timezone.utc)) == off:
+            return aware
+    return naive.replace(tzinfo=dt.timezone(dt.timedelta(hours=-5)))
+
+
+def now_ny():
+    return mc.to_new_york(dt.datetime.now(dt.timezone.utc))
+
+
 def quote_time(text):
-    """'Nov 9, 2026 10:45 AM ET' -> ISO 8601 with the New York offset. None if it can't be read."""
+    """'Nov 9, 2026 10:45 AM ET' -> ISO 8601 with the New York offset. None if it can't be read.
+    A date with no clock time (market closed) is read as midnight, so the engine treats it as old."""
     s = (text or "").replace(" ET", "").strip()
     for fmt in ("%b %d, %Y %I:%M %p", "%b %d, %Y"):
         try:
-            return dt.datetime.strptime(s, fmt).replace(tzinfo=NY).isoformat()
+            return _ny(dt.datetime.strptime(s, fmt)).isoformat()
         except ValueError:
             pass
     return None
@@ -54,9 +68,14 @@ def rows_of(h):
 
 def ingest(data, ledger, market="", outdir="."):
     summary, tick = {}, data.get("tickers") or {}
-    order = sorted(tick, key=lambda t: t.upper() != (market or "").upper())    # market fund first: signals need it
+    market = market if re.fullmatch(r"[A-Za-z][A-Za-z0-9.\-]{0,9}", market or "") else ""
+    order = sorted(tick, key=lambda t: str(t).upper() != market.upper())    # market fund first: signals need it
     for t in order:
-        d, T = tick[t], t.upper()
+        d, T = tick[t], str(t).upper()
+        if not re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,9}", T):       # the name becomes a file name: letters only
+            summary[T[:20]] = dict(ok=False, problem="not a ticker symbol"); continue
+        if not isinstance(d, dict):
+            summary[T] = dict(ok=False, problem="no data"); continue
         if d.get("error"):
             summary[T] = dict(ok=False, problem=d["error"]); continue
         rows, when = rows_of(d.get("h")), quote_time(d.get("time"))
