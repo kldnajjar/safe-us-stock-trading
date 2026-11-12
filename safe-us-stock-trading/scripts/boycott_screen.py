@@ -21,6 +21,7 @@ Evidence JSON (--evidence FILE):
   },
   "etf": {"screened_weight_pct": 100, "excluded_weight_pct": 0, "flagged_weight_pct": 0}   (ETFs only)
 }
+Quick screen (v5.3): add "depth": "quick" to require only AFSC, BDS and Who Profits (not OHCHR or SEC). Other sources are optional and still count when recorded. The result text says it was a quick screen.
 ETF weights are percentages of the fund: each a finite number from 0 to 100, screened exactly 100,
 and excluded + flagged <= screened. Anything else is UNVERIFIED.
 
@@ -32,6 +33,7 @@ SCHEMA = "boycott-result/1"
 SOURCES = ("ohchr", "bds", "afsc", "whoprofits", "sec")
 LIST_SOURCES = ("ohchr", "bds", "afsc", "whoprofits")
 FINDINGS = ("match", "no_match", "unreachable")
+QUICK_SOURCES = ("afsc", "bds", "whoprofits")   # v5.3 quick screen: AFSC Investigate, the BDS target list, Who Profits
 MAX_EVIDENCE_AGE_DAYS = 30
 RESULT_VALID_DAYS = 30
 
@@ -48,8 +50,11 @@ def compute_status(ev, as_of, strictness="strict"):
     if ev.get("identity_resolved") is not True:
         reasons.append("company identity (parent, subsidiaries, share classes) not resolved")
     src = ev.get("sources") or {}
+    quick = ev.get("depth") == "quick"                   # v5.3: the three lists in QUICK_SOURCES, not all five sources
     for s in SOURCES:
         e = src.get(s)
+        if quick and s not in QUICK_SOURCES and e is None:
+            continue                                      # optional in a quick screen; counted when recorded
         if not isinstance(e, dict):
             reasons.append(f"source '{s}' not checked")
             continue
@@ -70,6 +75,8 @@ def compute_status(ev, as_of, strictness="strict"):
     if (src.get("ohchr") or {}).get("finding") in ("match", "no_match") and not src["ohchr"].get("list_version"):
         reasons.append("OHCHR list version not recorded")
     sec = src.get("sec") or {}
+    if quick and "sec" not in src:
+        sec = dict(israel_hq=False, material_israel_ops=False)      # not checked: said so in the result text
     for k in ("israel_hq", "material_israel_ops"):
         if not isinstance(sec.get(k), bool):
             reasons.append(f"SEC check must state {k} as true/false")
@@ -91,8 +98,8 @@ def compute_status(ev, as_of, strictness="strict"):
 
     strict = strictness == "strict"
     excl_sources = LIST_SOURCES if strict else ("ohchr", "bds")
-    hits = [s for s in excl_sources if src[s]["finding"] == "match"]
-    soft = [] if strict else [s for s in ("afsc", "whoprofits") if src[s]["finding"] == "match"]
+    hits = [s for s in excl_sources if (src.get(s) or {}).get("finding") == "match"]
+    soft = [] if strict else [s for s in ("afsc", "whoprofits") if (src.get(s) or {}).get("finding") == "match"]
     if hits or sec["israel_hq"]:
         return "EXCLUDED", [f"listed by: {', '.join(hits)}" if hits else "Israel-headquartered per SEC filings"]
     if etf and etf["excluded_weight_pct"] > (0 if strict else 5):
@@ -106,6 +113,10 @@ def compute_status(ev, as_of, strictness="strict"):
         flags.append(f"ETF has {etf['excluded_weight_pct']}% excluded and {etf['flagged_weight_pct']}% flagged weight")
     if flags:
         return "FLAGGED", flags
+    if quick:
+        seen = ", ".join(s.upper() for s in SOURCES if s in src)
+        return "REVIEWED_NO_MATCH", [f"quick screen: checked on {seen}; nothing found there "
+                                     "(sources not named here were not checked)"]
     return "REVIEWED_NO_MATCH", ["all five sources checked; nothing found (absence from a list is not proof of no involvement)"]
 
 

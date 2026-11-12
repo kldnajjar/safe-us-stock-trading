@@ -112,6 +112,16 @@ def build_parser():
     ap.add_argument("--entity", default="", help="legal entity name as in the filing")
     ap.add_argument("--out", default="", help="write the result (with provenance) to this JSON file")
     ap.add_argument("--business", choices=["permissible", "mixed", "prohibited"])
+    ap.add_argument("--auto-inputs", action="store_true",
+                    help="v5.3: the numbers were mapped by a script from SEC data tags, not read from the filing; "
+                         "a pass then needs the user's acceptance")
+    ap.add_argument("--provider", help="v5.3 quick screen: a screening provider whose verdict the USER looked up and reported (musaffa)")
+    ap.add_argument("--provider-verdict", choices=["halal", "not_halal", "doubtful"])
+    ap.add_argument("--needs-confirmation", action="store_true",
+                    help="v5.3: a fund-list result is only a shortlist; it needs the user's own check on the screening provider")
+    ap.add_argument("--provider-date", help="date of the provider's review, YYYY-MM-DD")
+    ap.add_argument("--provider-url", help="https page on the provider's site showing the verdict")
+    ap.add_argument("--provider-methodology", help="the methodology the provider states, e.g. AAOIFI")
     ap.add_argument("--existing-holding", action="store_true")
     ap.add_argument("--previous-index-status", choices=["compliant", "noncompliant", "unknown"], default="unknown")
     ap.add_argument("--consecutive-periods", type=int, default=0,
@@ -160,6 +170,71 @@ def certificate_problem(a, as_of=None):
     if not str(a.certificate_url).startswith("https://"):
         return "--certificate-url (https) is required as evidence of the certificate"
     return None
+
+
+PROVIDERS = {"musaffa": ("Musaffa", "musaffa.com"),     # a verdict the USER looks up (their terms forbid scripts)
+             "spus": ("SP Funds SPUS holdings", "sp-funds.com")}   # the fund's published holdings file (lists.py)
+FUND_LISTS = ("spus",)                                  # "held by a certified Shariah fund": only ever a halal verdict
+MAX_PROVIDER_AGE_DAYS = 120                              # a provider's review older than this: screen again
+PROVIDER_VERDICT = {"halal": "PASS", "not_halal": "FAIL", "doubtful": "BORDERLINE"}
+
+
+def provider_problem(a, as_of=None):
+    """None if a screening provider's verdict is complete, sourced and current; else the reason it is not."""
+    if a.provider not in PROVIDERS:
+        return f"--provider must be one of: {', '.join(PROVIDERS)}"
+    name, domain = PROVIDERS[a.provider]
+    if a.provider_verdict not in PROVIDER_VERDICT:
+        return "--provider-verdict must be halal, not_halal or doubtful"
+    host = str(a.provider_url or "").partition("https://")[2].partition("/")[0].lower()
+    if not (host == domain or host.endswith("." + domain)):
+        return f"--provider-url must be an https page on {domain}"
+    want = {"aaoifi": "aaoifi", "msci": "msci", "msci-m": "msci", "sp": "s&p", "djim": "dow jones"}.get(a.methodology or "", "")
+    if not a.provider_methodology or (want and want not in str(a.provider_methodology).lower()):
+        return f"{name}'s stated methodology ({a.provider_methodology or 'not given'}) is not the chosen one ({a.methodology})"
+    try:
+        made = dt.date.fromisoformat(a.provider_date)
+        today = dt.date.fromisoformat(as_of or a.as_of)
+    except (TypeError, ValueError):
+        return "--provider-date and --as-of must be YYYY-MM-DD"
+    if made > today:
+        return f"provider review date {made} is after {today}"
+    if (today - made).days > MAX_PROVIDER_AGE_DAYS:
+        return f"{name}'s review ({made}) is older than {MAX_PROVIDER_AGE_DAYS} days"
+    return None
+
+
+def screen_provider(a):
+    """v5.3 quick screen: copy one named provider's published verdict. Nothing is computed here."""
+    head = dict(basis="provider", methodology_id=a.methodology, provider=PROVIDERS.get(a.provider, (a.provider,))[0],
+                methodology=f"{PROVIDERS.get(a.provider, (a.provider,))[0]}: {a.provider_methodology}",
+                source=a.provider_url, period=f"provider review dated {a.provider_date}",
+                data_published=a.provider_date, source_rechecked_this_session=True)
+    if not (a.ticker and a.entity and (a.isin or a.asset == "metal")):
+        return out("INSUFFICIENT_DATA", ["--ticker, --isin and --entity are required (identity provenance)"], **head)
+    why = provider_problem(a)
+    if why:
+        return out("INSUFFICIENT_DATA", [f"provider verdict: {why}"], **head)
+    if a.provider in FUND_LISTS:
+        if a.provider_verdict != "halal":
+            return out("INSUFFICIENT_DATA", ["a fund's holdings list can only say a stock is held (halal by the fund's screen)"], **head)
+        if getattr(a, "needs_confirmation", False):
+            res = out("BORDERLINE", [f"held by a certified Shariah fund ({head['provider']}, file dated {a.provider_date}), "
+                                     "not yet confirmed on Musaffa: look it up and report what it says"], **head)
+            res["note"] = ("shortlist only: the fund holds it, but the user's chosen authority is Musaffa and the user has not "
+                           "reported its verdict yet. Not a fatwa")
+            return res
+        res = out("PASS", [f"held by a certified Shariah fund ({head['provider']}, file dated {a.provider_date}): {a.provider_url}"], **head)
+        res["note"] = ("list screen: the stock is in the fund's published holdings, so it passed that fund's Shariah screen "
+                       "on that date. Other screeners can disagree. This skill computed no ratios. Not a fatwa")
+        return res
+    word = a.provider_verdict.replace("_", " ").upper()
+    res = out(PROVIDER_VERDICT[a.provider_verdict],
+              [f"{head['provider']} lists it as {word} under {a.provider_methodology} (reviewed {a.provider_date}): {a.provider_url}"],
+              **head)
+    res["note"] = ("quick screen: one screening provider's verdict, as the user looked it up and reported it; "
+                   "this skill did not read the provider's site or compute the ratios. Not a fatwa")
+    return res
 
 
 def mcap_date_problem(mcap_date, as_of):
@@ -386,6 +461,8 @@ def screen_stock(a, reg):
         reasons.append("passes the methodology's limits but the index would not admit it now; "
                        "this is not a religious prohibition")
 
+    if getattr(a, "auto_inputs", False):
+        flags.append("numbers mapped by a script from SEC data tags, not read from the filing: first pass only")
     return out(screening, reasons, index_entry, retention, flags, **head,
                data=dict(period=a.period, data_published=a.data_published, market_cap_date=a.market_cap_date or None),
                ratios=ratios, purification=purification(a, v))
@@ -453,7 +530,15 @@ def validate_result(res, ticker, as_of, registry_path=REGISTRY, expected_asset=N
         return "UNVERIFIED", [f"Shariah result expired on {expires.isoformat()}; re-screen"]
     if today < dt.date.fromisoformat(res["as_of"]):
         return "UNVERIFIED", ["Shariah result is dated in the future"]
-    if res["asset"] == "stock":
+    if res.get("basis") == "provider":
+        inp0 = res.get("inputs") or {}
+        if not res.get("entity") or not (res.get("isin") or res["asset"] == "metal"):
+            return "UNVERIFIED", ["Shariah result: missing provenance (isin, entity)"]
+        why = provider_problem(argparse.Namespace(**{k: inp0.get(k) for k in (
+            "provider", "provider_verdict", "provider_url", "provider_date", "provider_methodology", "methodology", "as_of")}), as_of)
+        if why:
+            return "UNVERIFIED", [f"Shariah result at trade time: provider verdict: {why}"]
+    elif res["asset"] == "stock":
         try:
             reg = load_registry(registry_path)
             vs = reg["methodologies"][res["methodology_id"]]["versions"]
@@ -474,7 +559,7 @@ def validate_result(res, ticker, as_of, registry_path=REGISTRY, expected_asset=N
         why = mcap_date_problem(inp.get("market_cap_date"), as_of)
         if why:
             return "UNVERIFIED", [f"Shariah result at trade time: {why}; re-screen with a fresh market cap"]
-    if res["asset"] == "etf-certified" or (res["asset"] == "metal" and inp.get("certifier")):
+    if res.get("basis") != "provider" and (res["asset"] == "etf-certified" or (res["asset"] == "metal" and inp.get("certifier"))):
         why = certificate_problem(argparse.Namespace(**{k: inp.get(k, "") for k in
                                                         ("certifier", "certificate_date", "certificate_url", "as_of")}),
                                   as_of)
@@ -490,6 +575,8 @@ def validate_result(res, ticker, as_of, registry_path=REGISTRY, expected_asset=N
 
 
 def _screen(a, reg=None):
+    if a.asset in ("stock", "etf-certified", "metal") and (getattr(a, "provider", None) or getattr(a, "provider_verdict", None)):
+        return screen_provider(a)                    # v5.3: a provider's verdict, for stocks, funds and metal trusts
     if a.asset == "tbill":
         return out("FAIL", ["T-bill / Treasury ETFs pay interest (riba)"],
                    alternative="cash, or a Shariah-certified sukuk fund (verify availability and screen it)")
@@ -528,6 +615,8 @@ def _screen(a, reg=None):
         reg = reg or load_registry(a.registry)
     except Exception as e:
         return out("INSUFFICIENT_DATA", [f"methodology registry invalid: {e}"])
+    if getattr(a, "provider", None) or getattr(a, "provider_verdict", None):
+        return screen_provider(a)
     return screen_stock(a, reg)
 
 

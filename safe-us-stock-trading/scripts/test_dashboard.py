@@ -71,11 +71,15 @@ class Dashboard(unittest.TestCase):
         evil = "<script>alert(1)</script>"
         d = dict(self.no, ticker=evil, reasons=[evil])
         page = rd.render([d], None, market=evil, notes=[evil], sources=[f"{evil}|javascript:alert(1)"])
-        self.assertNotIn("<script", page.lower())
+        # v5.3: the only script is the page's own fixed "check more" helper; no other script may appear
+        self.assertEqual(page.count("<script"), 1)
+        self.assertNotIn("<script", page.replace(f"<script>{rd.MORE_JS}</script>", "").lower())
         self.assertNotIn("javascript:", page)
 
     def test_self_contained(self):
-        self.assertIsNone(re.search(r"<(script|link|img|iframe)\b", self.page, re.I))
+        own = self.page.replace(f"<script>{rd.MORE_JS}</script>", "")       # v5.3: one fixed inline helper, no src
+        self.assertIsNone(re.search(r"<(script|link|img|iframe)\b", own, re.I))
+        self.assertNotIn("fetch(", rd.MORE_JS); self.assertNotIn("http", rd.MORE_JS)
         self.assertNotIn("@import", self.page)
 
     def test_minimal_plan_does_not_crash(self):

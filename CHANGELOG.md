@@ -4,6 +4,21 @@ All notable changes to this project. Format based on [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### v5.3: the same checks in a third of the time, and "check more" on the dashboard
+
+- **Compact market data.** `browser_fetch.js` returns closes for the year, high/low for the newest 25 rows, one shared date axis and a checksum per ticker: about 1.5 KB a ticker instead of 8 KB. `ingest.py` reads it (and the old shape) and skips a ticker whose checksum fails.
+- **Wide first look.** `browser_fetch.js` `MODE = "scan"` gives one short line a ticker for 10 to 30 names; `universe.json` holds sector pools. Scan numbers choose a shortlist only.
+- **Screens in a few calls.** `browser_boycott.js` checks every candidate on AFSC (companies and fund look-through), Who Profits and BDS, one call a site, each with a control check. `browser_facts.js` returns the SEC numbers the halal screen needs for every stock in one call (method borrowed from the open-source trader-skill pack's `trader-analyst`).
+- **Session store.** `store.py load|save` keeps the setup answers, the account as shown, the journal and still-valid screen results in a folder on the user's computer. The engine still re-checks every result at trade time.
+- **Fewer questions.** Saved answers are confirmed in one question; a new user gets grouped pickers. `quick:` follow-ups ask nothing.
+- **Dashboard "Check more".** Buttons for new ideas, live prices, each sector and the user's own tickers write a ready `quick:` request to paste in the chat.
+- **Follow the market.** The "Check more" box shows whether the US market is open now (NYSE holidays and early closes built in) and a "Follow the market now" button.
+- **Check ahead of time.** `prescreen.py` screens a whole pool of stocks (boycott and halal) into the store from three small inputs; `universe.json` gained `stocks` (legal name, ISIN, search words, business reading); the dashboard lists the checked names (`--prescreen`).
+- **Quick screen depth (default).** Boycott: AFSC Investigate, the BDS target list and Who Profits (`"depth": "quick"` in the evidence). Halal: one screening provider's verdict that the user looks up and reports (`shariah_screen.py --provider musaffa ...`, for stocks, funds and gold trusts); checked for site, methodology and age (120 days) when made and again at trade time. No script reads the provider: Musaffa's terms of use forbid automated access. A halal pass built by `prescreen.py` from SEC data tags is marked first-pass and needs the user's acceptance. The full depth (five sources, own ratios from SEC filings) is unchanged and still available.
+- **Saved lists (`lists.py`).** Screening by reading two lists kept in the store, with no web call at trade time: a halal list built from a certified Shariah fund's published holdings file (SPUS by default) and a boycott list for the same names (AFSC occupations list, BDS target page, Who Profits). `halal-add`, `keys`, `boycott-add`, `apply`, `check`. Results pass the same engine checks; a list site that did not answer never yields a clean result.
+- **`update_lists.py`: one command to refresh both lists** from the user's own terminal (standard library only): fund holdings file, AFSC occupations list, BDS target page, Who Profits. Every name match counts as a match and is printed for review; `OVERRIDES.json` records reviewed wrong matches; a source that fails or looks wrong leaves every stock UNVERIFIED. `lists.py set-halal` records the user's own provider lookups, which win over the fund list. Halal authority is Musaffa by default: a stock on the fund list is "your call" until the user reports Musaffa's verdict (kept 120 days); `"halal_authority": "fund"` lets the fund list count alone.
+- 24 new tests (`test_v53_fast.py`); 487 in all.
+
 ### v5.2: a money plan for the whole amount
 
 - `money_plan.py`: from the user's own state and risk level, the safety cash to keep, dated steps for putting the money in (the user chooses how many), the most allowed per kind of thing (gold fund, broad fund, single company), and what to fix first. It names no stock and promises nothing; each step means "run the skill that day".

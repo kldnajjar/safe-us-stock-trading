@@ -1,0 +1,456 @@
+{
+ "_note": "v5.3 candidate pools for a wide first look (browser_fetch.js MODE scan). Large, liquid US-listed names by sector. A POOL, NOT A RECOMMENDATION: several names here fail the boycott or halal screen, and both screens still run on every shortlisted name. Banks, insurers and other interest-based businesses are left out because the business-activity test excludes them. Maintainers: review the lists twice a year.",
+ "reviewed": "2026-11-12",
+ "sectors": {
+  "Tech / AI": [
+   "MSFT",
+   "AAPL",
+   "NVDA",
+   "AVGO",
+   "GOOGL",
+   "META",
+   "ORCL",
+   "AMD",
+   "CRM",
+   "ADBE",
+   "TSM",
+   "ASML"
+  ],
+  "Healthcare": [
+   "LLY",
+   "JNJ",
+   "ABBV",
+   "MRK",
+   "TMO",
+   "ABT",
+   "ISRG",
+   "AMGN",
+   "NVO",
+   "AZN"
+  ],
+  "Consumer staples": [
+   "PG",
+   "COST",
+   "WMT",
+   "KO",
+   "PEP",
+   "CL"
+  ],
+  "Consumer / retail": [
+   "AMZN",
+   "TSLA",
+   "HD",
+   "NKE",
+   "LOW",
+   "TJX"
+  ],
+  "Industrials": [
+   "CAT",
+   "GE",
+   "HON",
+   "UNP",
+   "DE",
+   "ETN"
+  ],
+  "Energy": [
+   "XOM",
+   "CVX",
+   "COP",
+   "SLB",
+   "EOG"
+  ],
+  "Materials": [
+   "LIN",
+   "SHW",
+   "NEM",
+   "FCX"
+  ],
+  "Gold / silver": [
+   "GLDM",
+   "IAU",
+   "GLD",
+   "SIVR",
+   "SLV"
+  ],
+  "Halal funds": [
+   "SPUS",
+   "HLAL",
+   "UMMA",
+   "SPTE"
+  ]
+ },
+ "stocks": {
+  "MSFT": {
+   "entity": "Microsoft Corporation",
+   "isin": "US5949181045",
+   "search": [
+    "microsoft"
+   ],
+   "business": "permissible"
+  },
+  "AAPL": {
+   "entity": "Apple Inc.",
+   "isin": "US0378331005",
+   "search": [
+    "apple inc",
+    "apple"
+   ],
+   "business": "permissible"
+  },
+  "NVDA": {
+   "entity": "NVIDIA Corporation",
+   "isin": "US67066G1040",
+   "search": [
+    "nvidia",
+    "mellanox"
+   ],
+   "business": "permissible"
+  },
+  "AVGO": {
+   "entity": "Broadcom Inc.",
+   "isin": "US11135F1012",
+   "search": [
+    "broadcom",
+    "vmware"
+   ],
+   "business": "permissible"
+  },
+  "GOOGL": {
+   "entity": "Alphabet Inc.",
+   "isin": "US02079K3059",
+   "search": [
+    "alphabet",
+    "google"
+   ],
+   "business": "permissible"
+  },
+  "META": {
+   "entity": "Meta Platforms, Inc.",
+   "isin": "US30303M1027",
+   "search": [
+    "meta platforms",
+    "facebook"
+   ],
+   "business": "permissible"
+  },
+  "ORCL": {
+   "entity": "Oracle Corporation",
+   "isin": "US68389X1054",
+   "search": [
+    "oracle"
+   ],
+   "business": "permissible"
+  },
+  "AMD": {
+   "entity": "Advanced Micro Devices, Inc.",
+   "isin": "US0079031078",
+   "search": [
+    "advanced micro devices"
+   ],
+   "business": "permissible"
+  },
+  "CRM": {
+   "entity": "Salesforce, Inc.",
+   "isin": "US79466L3024",
+   "search": [
+    "salesforce"
+   ],
+   "business": "permissible"
+  },
+  "ADBE": {
+   "entity": "Adobe Inc.",
+   "isin": "US00724F1012",
+   "search": [
+    "adobe"
+   ],
+   "business": "permissible"
+  },
+  "LLY": {
+   "entity": "Eli Lilly and Company",
+   "isin": "US5324571083",
+   "search": [
+    "lilly"
+   ],
+   "business": "permissible"
+  },
+  "JNJ": {
+   "entity": "Johnson & Johnson",
+   "isin": "US4781601046",
+   "search": [
+    "johnson & johnson",
+    "johnson and johnson"
+   ],
+   "business": "permissible"
+  },
+  "ABBV": {
+   "entity": "AbbVie Inc.",
+   "isin": "US00287Y1091",
+   "search": [
+    "abbvie"
+   ],
+   "business": "permissible"
+  },
+  "MRK": {
+   "entity": "Merck & Co., Inc.",
+   "isin": "US58933Y1055",
+   "search": [
+    "merck"
+   ],
+   "business": "permissible"
+  },
+  "TMO": {
+   "entity": "Thermo Fisher Scientific Inc.",
+   "isin": "US8835561023",
+   "search": [
+    "thermo fisher"
+   ],
+   "business": "permissible"
+  },
+  "ABT": {
+   "entity": "Abbott Laboratories",
+   "isin": "US0028241000",
+   "search": [
+    "abbott"
+   ],
+   "business": "permissible"
+  },
+  "ISRG": {
+   "entity": "Intuitive Surgical, Inc.",
+   "isin": "US46120E6023",
+   "search": [
+    "intuitive surgical"
+   ],
+   "business": "permissible"
+  },
+  "AMGN": {
+   "entity": "Amgen Inc.",
+   "isin": "US0311621009",
+   "search": [
+    "amgen"
+   ],
+   "business": "permissible"
+  },
+  "PG": {
+   "entity": "The Procter & Gamble Company",
+   "isin": "US7427181091",
+   "search": [
+    "procter"
+   ],
+   "business": "permissible"
+  },
+  "COST": {
+   "entity": "Costco Wholesale Corporation",
+   "isin": "US22160K1051",
+   "search": [
+    "costco"
+   ],
+   "business": "mixed"
+  },
+  "WMT": {
+   "entity": "Walmart Inc.",
+   "isin": "US9311421039",
+   "search": [
+    "walmart",
+    "wal-mart"
+   ],
+   "business": "mixed"
+  },
+  "KO": {
+   "entity": "The Coca-Cola Company",
+   "isin": "US1912161007",
+   "search": [
+    "coca-cola",
+    "coca cola"
+   ],
+   "business": "permissible"
+  },
+  "PEP": {
+   "entity": "PepsiCo, Inc.",
+   "isin": "US7134481081",
+   "search": [
+    "pepsi"
+   ],
+   "business": "permissible"
+  },
+  "CL": {
+   "entity": "Colgate-Palmolive Company",
+   "isin": "US1941621039",
+   "search": [
+    "colgate"
+   ],
+   "business": "permissible"
+  },
+  "AMZN": {
+   "entity": "Amazon.com, Inc.",
+   "isin": "US0231351067",
+   "search": [
+    "amazon"
+   ],
+   "business": "mixed"
+  },
+  "TSLA": {
+   "entity": "Tesla, Inc.",
+   "isin": "US88160R1014",
+   "search": [
+    "tesla"
+   ],
+   "business": "permissible"
+  },
+  "HD": {
+   "entity": "The Home Depot, Inc.",
+   "isin": "US4370761029",
+   "search": [
+    "home depot"
+   ],
+   "business": "permissible"
+  },
+  "NKE": {
+   "entity": "NIKE, Inc.",
+   "isin": "US6541061031",
+   "search": [
+    "nike"
+   ],
+   "business": "permissible"
+  },
+  "LOW": {
+   "entity": "Lowe's Companies, Inc.",
+   "isin": "US5486611073",
+   "search": [
+    "lowe's",
+    "lowes"
+   ],
+   "business": "permissible"
+  },
+  "TJX": {
+   "entity": "The TJX Companies, Inc.",
+   "isin": "US8725401090",
+   "search": [
+    "tjx"
+   ],
+   "business": "permissible"
+  },
+  "CAT": {
+   "entity": "Caterpillar Inc.",
+   "isin": "US1491231015",
+   "search": [
+    "caterpillar"
+   ],
+   "business": "permissible"
+  },
+  "GE": {
+   "entity": "General Electric Company (GE Aerospace)",
+   "isin": "US3696043013",
+   "search": [
+    "general electric",
+    "ge aerospace"
+   ],
+   "business": "mixed"
+  },
+  "HON": {
+   "entity": "Honeywell International Inc.",
+   "isin": "US4385161066",
+   "search": [
+    "honeywell"
+   ],
+   "business": "mixed"
+  },
+  "UNP": {
+   "entity": "Union Pacific Corporation",
+   "isin": "US9078181081",
+   "search": [
+    "union pacific"
+   ],
+   "business": "permissible"
+  },
+  "DE": {
+   "entity": "Deere & Company",
+   "isin": "US2441991054",
+   "search": [
+    "deere"
+   ],
+   "business": "permissible"
+  },
+  "ETN": {
+   "entity": "Eaton Corporation plc",
+   "isin": "IE00B8KQN827",
+   "search": [
+    "eaton"
+   ],
+   "business": "permissible"
+  },
+  "XOM": {
+   "entity": "Exxon Mobil Corporation",
+   "isin": "US30231G1022",
+   "search": [
+    "exxon"
+   ],
+   "business": "permissible"
+  },
+  "CVX": {
+   "entity": "Chevron Corporation",
+   "isin": "US1667641005",
+   "search": [
+    "chevron"
+   ],
+   "business": "permissible"
+  },
+  "COP": {
+   "entity": "ConocoPhillips",
+   "isin": "US20825C1045",
+   "search": [
+    "conocophillips",
+    "conoco"
+   ],
+   "business": "permissible"
+  },
+  "SLB": {
+   "entity": "Schlumberger Limited (SLB)",
+   "isin": "AN8068571086",
+   "search": [
+    "schlumberger"
+   ],
+   "business": "permissible"
+  },
+  "EOG": {
+   "entity": "EOG Resources, Inc.",
+   "isin": "US26875P1012",
+   "search": [
+    "eog resources"
+   ],
+   "business": "permissible"
+  },
+  "LIN": {
+   "entity": "Linde plc",
+   "isin": "IE000S9YS762",
+   "search": [
+    "linde"
+   ],
+   "business": "permissible"
+  },
+  "SHW": {
+   "entity": "The Sherwin-Williams Company",
+   "isin": "US8243481061",
+   "search": [
+    "sherwin"
+   ],
+   "business": "permissible"
+  },
+  "NEM": {
+   "entity": "Newmont Corporation",
+   "isin": "US6516391066",
+   "search": [
+    "newmont"
+   ],
+   "business": "permissible"
+  },
+  "FCX": {
+   "entity": "Freeport-McMoRan Inc.",
+   "isin": "US35671D8570",
+   "search": [
+    "freeport"
+   ],
+   "business": "permissible"
+  }
+ },
+ "_stocks_note": "Identity for prescreen.py. isin: typed by the maintainer and check-digit tested only: confirm each against the broker app before a trade. business: the maintainer's first reading of the core business for the halal screen (mixed = a material line such as alcohol/tobacco retail or weapons that needs the user's or a scholar's view); it is not a ruling. search: words looked up on the boycott lists."
+}

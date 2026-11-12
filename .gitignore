@@ -53,3 +53,12 @@ DATA*.json
 /*.csv
 safe-us-stock-trading/scripts/[A-Z]*.csv
 dashboard*.html
+
+# v5.3 session store (answers and screen results kept between sessions)
+trade-store/
+PROFILE*.json
+BOY_*.json
+SH_*.json
+EV_*.json
+
+_to_delete/

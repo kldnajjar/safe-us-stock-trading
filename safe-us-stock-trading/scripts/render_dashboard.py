@@ -26,6 +26,7 @@ sys_path_dir = _os.path.dirname(_os.path.abspath(__file__))
 import sys as _sys
 if sys_path_dir not in _sys.path:
     _sys.path.insert(0, sys_path_dir)
+import market_clock as _mc  # noqa: E402
 import render_simple as _rs  # noqa: E402  (same WHY / FIX table as the text output)
 from portfolio_state import plan_is_trade as _plan_is_trade  # noqa: E402
 
@@ -98,6 +99,17 @@ table.chk td,table.chk th{text-align:left;vertical-align:top}table.chk td.ref{fo
 details{margin:10px 0}summary{cursor:pointer;font-weight:700;padding:8px 0}details .card{margin-top:6px}
 a{color:var(--info)}ul.src{padding-left:18px;font-size:14px}
 .foot{margin-top:28px;font-weight:800;text-align:center}
+.more{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.more .row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.more button{font:inherit;font-weight:650;padding:8px 14px;border-radius:99px;border:1px solid var(--line);
+background:var(--info-bg);color:var(--ink);cursor:pointer}.more button:hover{border-color:var(--info)}
+.more .mkt{align-items:center;font-weight:750;color:var(--warn)}.more .mkt.open{color:var(--ok)}
+.more .mkt.open button{background:var(--ok);color:var(--bg);border-color:var(--ok)}
+.more input{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);
+color:var(--ink);flex:1;min-width:160px}
+.more textarea{width:100%;min-height:74px;margin-top:8px;font:13px/1.4 ui-monospace,monospace;padding:8px;border-radius:8px;
+border:1px solid var(--line);background:var(--bg);color:var(--ink)}.more .said{font-weight:700;min-height:1.4em}
+@media print{.more,.more-h{display:none}}
 @media (max-width:520px){.secrow{grid-template-columns:90px 1fr 90px}.hero .big{font-size:24px}}
 @media print{:root,:root[data-theme="dark"],:root:not([data-theme="light"]){--bg:#fff;--card:#fff;--ink:#111;--mute:#555;
 --line:#cfcfc8;--ok:#17693f;--ok-bg:#e2f3e9;--warn:#7d5200;--warn-bg:#fcefcf;--bad:#a81f14;--bad-bg:#fde5e2;
@@ -661,8 +673,113 @@ def sectors(state, projected):
     return f'<h2>Where your money sits — {e(label)}</h2>{rows}'
 
 
+def universe():
+    """Sector pools for the "check more" buttons (universe.json). A broken file means no sector buttons."""
+    try:
+        with open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "universe.json")) as f:
+            return [str(k) for k in (json.load(f).get("sectors") or {})]
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
+MORE_JS = """
+(function(){var box=document.getElementById('more-text'),said=document.getElementById('more-said');
+function put(t){box.value=t;box.focus();box.select();
+var done=function(){said.textContent='COPIED. PASTE IT IN THE CHAT WITH CLAUDE.'};
+var fail=function(){said.textContent='SELECTED BELOW. COPY IT AND PASTE IT IN THE CHAT WITH CLAUDE.'};
+try{navigator.clipboard.writeText(t).then(done,fail)}catch(e){fail()}}
+var mk=document.getElementById('more-market');
+if(mk){var hol=JSON.parse(mk.getAttribute('data-hol')),early=JSON.parse(mk.getAttribute('data-early'));
+var F=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',
+hour:'2-digit',minute:'2-digit',weekday:'short',hourCycle:'h23'});
+var ny=function(d){var o={};F.formatToParts(d).forEach(function(x){o[x.type]=x.value});
+return {day:o.year+'-'+o.month+'-'+o.day,min:(+o.hour)*60+(+o.minute),wd:o.weekday}};
+var sess=function(n){return n.wd!=='Sat'&&n.wd!=='Sun'&&hol.indexOf(n.day)<0};
+var span=function(m){return (m>=60?Math.floor(m/60)+' H ':'')+(m%60)+' MIN'};
+var tick=function(){var now=new Date(),n=ny(now),end=early.indexOf(n.day)<0?960:780,b=mk.querySelector('button');
+if(sess(n)&&n.min>=570&&n.min<end){mk.className='row mkt open';
+mk.querySelector('.st').textContent='+ US MARKET IS OPEN NOW. CLOSES IN '+span(end-n.min)+'.';b.textContent='Follow the market now';return}
+var t=new Date(now.getTime()),left=-1;
+for(var i=0;i<14*24*4&&left<0;i++){t=new Date(t.getTime()+15*60000);var x=ny(t);
+if(sess(x)&&x.min>=570&&x.min<585)left=Math.round((t-now)/60000)-(x.min-570)}
+mk.className='row mkt';mk.querySelector('.st').textContent='! US MARKET IS CLOSED.'+(left>=0?' OPENS IN '
++(left>=1440?Math.floor(left/1440)+' D ':'')+span(left%1440)+' ('+new Date(now.getTime()+left*60000).toLocaleString([],
+{weekday:'short',hour:'2-digit',minute:'2-digit'})+' YOUR TIME).':'');
+b.textContent='Get a watch list for the open'};
+try{tick();setInterval(tick,60000)}catch(e){mk.querySelector('.st').textContent=''}}
+document.querySelectorAll('.more button[data-ask]').forEach(function(b){b.addEventListener('click',function(){
+var ask=b.getAttribute('data-ask');
+if(b.hasAttribute('data-typed')){var v=document.getElementById('more-tickers').value.replace(/[^A-Za-z0-9., -]/g,'').trim();
+if(!v){said.textContent='TYPE ONE OR MORE TICKERS FIRST.';return}ask=ask.replace('{T}',v.toUpperCase())}
+put(ask+' '+box.getAttribute('data-same'))})})})();
+"""
+
+
+def more_section(plans, state):
+    """v5.3: buttons that write a ready follow-up request (sector, new ideas, tickers, live prices).
+    The page cannot run a check by itself: a button copies the request, the user pastes it in the chat."""
+    first = next((p for p in plans if p.get("profile")), {})
+    bits = [f"risk {first.get('profile')}" if first.get("profile") else "",
+            f"hold {first.get('horizon')}" if first.get("horizon") else "",
+            f"app {first.get('broker')}" if first.get("broker") else "",
+            f"boycott {get(first, 'boycott', 'mode')}" if get(first, "boycott", "mode") else "",
+            f"halal {get(first, 'shariah', 'mode')}" if get(first, "shariah", "mode") else ""]
+    same = ("Same answers as my last run" + (" (" + ", ".join(b for b in bits if b) + ")" if any(bits) else "")
+            + ". My account is the same as last time unless I say so here: ")
+    looked = ", ".join(sorted({str(p.get("ticker")).upper() for p in plans if p.get("ticker")}))
+    held = ", ".join(sorted({str(h.get("ticker")).upper() for h in ((state or {}).get("actual") or state or {}).get("holdings") or [] if h.get("ticker")}))
+    skip = f" Already checked: {looked}." if looked else ""
+
+    def btn(label, ask, typed=False):
+        return f'<button type="button" data-ask="{e("quick: " + ask)}"{" data-typed" if typed else ""}>{e(label)}</button>'
+    made = next((get(p, "quote", "time") for p in plans if get(p, "quote", "time")), "")
+    follow = ("follow the market now: live prices for " + " and ".join(x for x in (
+        f"what I hold ({held})" if held else "", f"the ideas on this page ({looked})" if looked else "") if x)
+        if (held or looked) else "follow the market now")
+    follow += (f", what changed since {_rs.when(made)}" if made else "") + ", and whether any plan is ready to place."
+    market = (f'<div class="row mkt" id="more-market" data-hol="{e(json.dumps(sorted(_mc.NYSE_HOLIDAYS)))}" '
+              f'data-early="{e(json.dumps(sorted(_mc.NYSE_EARLY_CLOSE)))}"><span class="st"></span>'
+              + btn("Follow the market now", follow) + "</div>")
+    rows = [market, '<div class="row">' + btn("Find new ideas", "find new ideas, different from the ones on this page." + skip)
+            + btn("Same ideas, live prices", f"check {looked} again with live prices." if looked else "check again with live prices.")
+            + (btn("Review what I hold", f"review what I hold ({held}).") if held else "") + "</div>"]
+    secs = universe()
+    if secs:
+        rows.append('<div class="sub">One sector:</div><div class="row">'
+                    + "".join(btn(s, f"check the sector {s}: a wide first look, then the best 3." + skip) for s in secs) + "</div>")
+    rows.append('<div class="sub">Your own tickers:</div><div class="row">'
+                '<input id="more-tickers" type="text" placeholder="MSFT, COST" maxlength="80" autocomplete="off">'
+                + btn("Check these", "check these tickers: {T}.", typed=True) + "</div>")
+    return ('<h2 class="more-h">Check more</h2><div class="more"><div class="sub">Tap one. It writes the request for you. '
+            'Paste it in the chat with Claude. A follow-up reuses your answers and saved checks, so it is quicker.</div>'
+            + "".join(rows) + '<div class="said ok" id="more-said" aria-live="polite"></div>'
+            f'<textarea id="more-text" readonly aria-label="Request to paste in the chat" data-same="{e(same)}"></textarea></div>')
+
+
+def prescreen_section(ps):
+    """v5.3: names checked ahead of time by prescreen.py (boycott and halal only: no price, no plan)."""
+    rows = (ps or {}).get("rows") if isinstance(ps, dict) else None
+    if not rows:
+        return ""
+    cls = {"REVIEWED_NO_MATCH": "ok", "EXCLUDED": "bad", "FLAGGED": "warn", "PERMITTED": "ok",
+           "REQUIRES_ACCEPTANCE": "warn"}
+    word = {"REVIEWED_NO_MATCH": "NOT ON LISTS", "EXCLUDED": "ON BOYCOTT LIST", "FLAGGED": "FLAGGED",
+            "UNVERIFIED": "CAN'T CONFIRM", "PERMITTED": "HALAL", "REQUIRES_ACCEPTANCE": "ONLY IF YOU ACCEPT"}
+    clean = [r for r in rows if r.get("boycott") == "REVIEWED_NO_MATCH" and r.get("halal") == "PERMITTED"]
+    body = "".join(
+        f'<tr><td><b>{e(r.get("ticker"))}</b> <span class="sub">{e(r.get("sector"))}</span></td>'
+        f'<td>{chip(word.get(r.get("boycott"), str(r.get("boycott"))), cls.get(r.get("boycott"), "warn"))}</td>'
+        f'<td>{chip(word.get(r.get("halal"), "NOT HALAL" if r.get("halal") == "EXCLUDED" else str(r.get("halal"))), "bad" if r.get("halal") == "EXCLUDED" else cls.get(r.get("halal"), "warn"))}</td>'
+        f'<td class="ref">{e(r.get("note"))}</td></tr>' for r in rows)
+    return (f'<h2>Checked ahead of time</h2><details><summary>{len(rows)} names checked on {e(ps.get("as_of"))}: '
+            f'{len(clean)} pass both checks</summary><div class="sub">Boycott and halal checks only. No price was '
+            'looked at and nothing here is a plan. A check is good for 30 days.</div>'
+            f'<div class="tbl"><table class="chk"><thead><tr><th>Name</th><th>Boycott</th><th>Halal</th><th>Note</th></tr>'
+            f'</thead><tbody>{body}</tbody></table></div></details>')
+
+
 def render(plans, state=None, projected=None, market="", metals="", events="", notes=(), sources=(),
-           title="Trade plan", skipped=(), tz="", journal=None, money_plan=None, analysis=None):
+           title="Trade plan", skipped=(), tz="", journal=None, money_plan=None, analysis=None, prescreen=None):
     _rs.set_local(tz)
     # never-researched plans (screens not run) are listed once under Skipped, not as red cards
     skipped = list(skipped) + [f"{(x.get('ticker') or '?').upper()}|not researched (checks not run), not a candidate"
@@ -709,6 +826,8 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     if not plan_only:
         p.append(f"<h2>{'Your choices' if can_place else 'What I looked at'}</h2>" + option_cards(plans))
     p.append(checks_table(plans))
+    p.append(more_section(plans, state))
+    p.append(prescreen_section(prescreen))
     p.append('<div class="legend">' + chip("GREEN = GOOD / CAN WIN", "ok") + chip("YELLOW = WAIT / YOUR CALL", "warn")
              + chip("RED = STOP / CAN LOSE", "bad") + chip("BLUE = INFO", "info") + "</div>")
     p.append(results_section(journal))
@@ -756,7 +875,7 @@ def render(plans, state=None, projected=None, market="", metals="", events="", n
     return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{e(title)}</title><style>{CSS}</style></head><body><main>'
-            + "".join(p) + "</main></body></html>\n")
+            + "".join(p) + f"</main><script>{MORE_JS}</script></body></html>\n")
 
 
 def main(argv=None):
@@ -775,6 +894,7 @@ def main(argv=None):
     ap.add_argument("--journal", help="v5.1: journal.py report JSON; shows whether the plans have made money")
     ap.add_argument("--money-plan", help="v5.2: money_plan.py JSON; shows when to invest and in what kind of thing")
     ap.add_argument("--analysis", help="v5.2: ANALYSIS.json, the analyst's market read (mood, sourced facts, both sides, scenarios)")
+    ap.add_argument("--prescreen", help="v5.3: PRESCREEN.json from prescreen.py; lists names checked ahead of time")
     ap.add_argument("--out")
     a = ap.parse_args(argv)
 
@@ -784,7 +904,8 @@ def main(argv=None):
     page = render([load(f) for f in a.plans], load(a.state) if a.state else None,
                   load(a.projected) if a.projected else None, a.market, a.metals, a.events,
                   a.note, a.source, a.title, a.skipped, a.tz, load(a.journal) if a.journal else None,
-                  load(a.money_plan) if a.money_plan else None, load(a.analysis) if a.analysis else None)
+                  load(a.money_plan) if a.money_plan else None, load(a.analysis) if a.analysis else None,
+                  load(a.prescreen) if a.prescreen else None)
     if a.out:
         with open(a.out, "w") as fh:
             fh.write(page)

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""One command to take in market data (v5.0): quotes + a year of daily prices for every ticker.
+"""One command to take in market data (v5.0; compact v5.3 data): quotes + a year of daily prices for every ticker.
 
 Input is the JSON string returned by browser_fetch.js (run once in the browser on nasdaq.com).
 For every ticker this writes TICKER.csv (date,close,high,low), records the Nasdaq quote and the price
 history in the source ledger (ledger.py checks each entry on the spot), and runs signals.py.
 Nothing is estimated: a ticker with an error, no rows or a bad quote time is reported and skipped.
+v5.3: browser_fetch.js now returns compact data ("v": 2): closes for the whole year, high/low for the
+newest rows only, a shared date axis, and a checksum per ticker. A ticker whose checksum does not match
+(a copying mistake between the browser and DATA.json) is skipped, never repaired. The v5.0 shape still works.
 
   python3 ingest.py --data DATA.json --ledger LEDGER.json --market HLAL [--outdir .]
 
@@ -66,6 +69,38 @@ def rows_of(h):
     return out
 
 
+def rows_v2(d, axes):
+    """Compact v5.3 rows -> ([date, close, high, low] strings, problem). High/low are "" for older rows."""
+    try:
+        ax = axes[int(d["ax"])]
+        day = dt.date.fromisoformat(ax["d0"])
+        dates = [day]
+        for ch in ax["gaps"]:
+            gap = int(ch, 36)
+            if gap < 1:
+                return [], "bad date axis"
+            day += dt.timedelta(days=gap)
+            dates.append(day)
+        closes = [int(x, 36) for x in str(d["c"]).split()]
+        hl = [[int(v, 36) for v in x.split(".")] for x in str(d.get("hl") or "").split()]
+        if any(len(x) != 2 for x in hl):
+            return [], "bad high/low data"
+        n = len(closes)
+        if n != len(dates) or n != int(d.get("n", n)) or len(hl) > n:
+            return [], f"row count does not match ({n} closes, {len(dates)} dates)"
+        if (sum(closes) + sum(h + lo for h, lo in hl)) % 1000000 != int(d["sum"]):
+            return [], "checksum does not match: DATA.json is not what the browser returned; save it again"
+        if min(closes) <= 0 or any(lo <= 0 or h < lo for h, lo in hl):
+            return [], "bad price in the data"
+    except (KeyError, IndexError, TypeError, ValueError) as ex:
+        return [], f"unreadable compact data ({ex.__class__.__name__})"
+    k, out = n - len(hl), []
+    for i in range(n):
+        h, lo = (f"{hl[i - k][0] / 100:.2f}", f"{hl[i - k][1] / 100:.2f}") if i >= k else ("", "")
+        out.append([dates[i].isoformat(), f"{closes[i] / 100:.2f}", h, lo])
+    return out, None
+
+
 def ingest(data, ledger, market="", outdir="."):
     summary, tick = {}, data.get("tickers") or {}
     market = market if re.fullmatch(r"[A-Za-z][A-Za-z0-9.\-]{0,9}", market or "") else ""
@@ -78,7 +113,13 @@ def ingest(data, ledger, market="", outdir="."):
             summary[T] = dict(ok=False, problem="no data"); continue
         if d.get("error"):
             summary[T] = dict(ok=False, problem=d["error"]); continue
-        rows, when = rows_of(d.get("h")), quote_time(d.get("time"))
+        if "c" in d:                                             # compact v5.3 data
+            rows, problem = rows_v2(d, data.get("axes") or [])
+            if problem:
+                summary[T] = dict(ok=False, problem=problem); continue
+        else:
+            rows = rows_of(d.get("h"))
+        when = quote_time(d.get("time"))
         try:
             price = float(d.get("price"))
         except (TypeError, ValueError):

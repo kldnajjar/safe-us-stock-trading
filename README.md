@@ -43,19 +43,20 @@ The engine is verified: an independent recomputation matched every dollar figure
 
 | Feature | What it does |
 |---|---|
-| 💬 **One question at a time** | A short guided interview with tap-to-answer options; answered questions are skipped, "not sure" takes a safe default |
+| 💬 **Few questions** | Saved answers are confirmed in one question; a new user gets grouped tap-to-answer questions; "not sure" takes a safe default |
+| ⚡ **Screening from saved lists** | A halal shortlist and a boycott list are kept on your computer and read with no web lookups during a trade run; one command refreshes them ([how](#screening-from-saved-lists)) |
 | 🎯 **Exact levels** | Limit buy price, stop-loss (or a review level for long-term holds), two sell targets, share counts and every fee |
 | 💸 **Real costs** | Any broker's fee schedule (percent, per share, flat or commission-free), separate sell fees, FX only when currency is actually converted, spread and slippage. Unverified fee schedules are labelled on every plan |
 | 🛡️ **Portfolio-wide limits** | Per-stock and per-ETF caps, sector caps (ETFs looked through), total open risk, cash floor, max positions |
-| ☪️ **Shariah screen, always on** | AAOIFI SS-21, MSCI Islamic (two series), S&P Shariah or Dow Jones Islamic, from a versioned and sourced registry, with purification in USD (always rounded up) |
-| ✊ **Boycott screen, always on** | UN OHCHR settlements database, BDS, AFSC Investigate, Who Profits, SEC filings; the status is computed from evidence, never typed in |
+| ☪️ **Shariah screen, always on** | AAOIFI SS-21, MSCI Islamic (two series), S&P Shariah or Dow Jones Islamic, from a versioned and sourced registry, with purification in USD (always rounded up). By default the halal judge is Musaffa, through your own lookup (their terms forbid scripts): a certified Shariah fund's holdings give the shortlist, your reported verdict decides |
+| ✊ **Boycott screen, always on** | Quick depth (default): AFSC Investigate, the BDS target page and Who Profits. Full depth adds the UN OHCHR settlements database and SEC filings. The status is computed from evidence, never typed in; a list that did not answer never gives a clean result |
 | 🔎 **Fresh, ranked, shown sources** | Every number is a ledger entry from a ranked source (official > wire/press > data sites), checked for freshness and the right site; two price sources must agree; company financials come only from SEC filings |
 | ❓ **Every NO BUY explained** | Every reason in plain words, the facts behind it (which list, which ratio, which source is stale), what would fix it, and what else is still needed |
 | 📈 **Signals** | Long-only momentum, earnings momentum, low volatility, trend and market filters from *151 Trading Strategies*; AVOID is refused |
 | 🕰️ **Market-hours aware** | NYSE regular session, holidays and early closes; outside them you get a conditional WAIT plan |
 | 📰 **News-driven context** | Fed, BLS, BEA, Treasury and SEC first, then major outlets; releases are read against expectations |
 | 🥇 **Gold / silver signal** | Six-factor score; unverifiable factors lower confidence instead of counting as zero |
-| 📊 **Dashboard every run** | One self-contained HTML page: portfolio, limits used, a BUY / WAIT / NO BUY card per idea with every reason and its sources |
+| 📊 **Dashboard every run** | One self-contained HTML page: portfolio, limits used, a BUY / WAIT / NO BUY card per idea with every reason and its sources; a "Check more" box with a live market-open line and buttons that write a ready follow-up request (follow the market, new ideas, one sector, your own tickers) |
 | 📒 **Trade journal** | Paper and real trades; win rate, average R, totals after fees and charity, comparison with a benchmark, reconciliation with your app |
 
 Both screens are **always on**. You choose *exclude* (default: failing names are never planned) or *flag only* (every screened idea is shown as an option, labelled with its result and the reference behind it: which list and link, or which Shariah ratio failed; you decide).
@@ -177,7 +178,7 @@ The report also shows the NYSE clock and anything due to expire within 30 days.
 - *"Review my holdings and tell me what to sell."*
 - *"Is now a good time to add gold?"*
 
-It asks **one question at a time**: first the trade (amount, what to buy, horizon, risk), then on the first run your platform, fees, how the screens are applied and your Shariah methodology, then your cash, holdings and open orders.
+On the first run it asks about the trade (amount, what to buy, horizon, risk), your platform, fees, how the screens are applied and your Shariah methodology, then your cash, holdings and open orders, in a few grouped questions. Later runs confirm the saved answers in one question and ask only what changed. A request that starts with `quick:` (the dashboard buttons write these) asks nothing.
 
 ### When to run it
 
@@ -203,6 +204,65 @@ Usually that's the rules working, not a bug. In 7,200 realistic simulated setups
 
 NO TRADE is a valid outcome. With costs like these, trading less often usually keeps more money.
 
+## Screening from saved lists
+
+Since v5.3 the two screens can be answered from lists kept in a folder on your own computer (the "store", for example `trade-store/`), so a trade run does no boycott or halal web lookups.
+
+| List | What it is | Good for |
+|---|---|---|
+| Halal shortlist | The holdings file a certified Shariah fund publishes for download (SPUS by default). A stock the fund holds passed that fund's screen on the file's date | 120 days |
+| Boycott list | For the same names: which ones AFSC Investigate (occupations list), the BDS target page or Who Profits name | 30 days |
+| Your halal answers | What **you** found on Musaffa for a name (halal, not halal, doubtful) | 120 days each |
+
+**Musaffa is the halal judge by default, through you.** Musaffa's terms of use forbid robots and scripts, so the skill never reads their site. A stock on the fund shortlist shows as "confirm on Musaffa" until you look it up yourself and report it; your answer wins over the fund list. To let the fund list count alone, set `"halal_authority": "fund"` in `trade-store/lists/OVERRIDES.json`. Screeners can disagree with each other, which is why your own lookup decides.
+
+### Update the lists
+
+Run this in your own terminal about once a month (Python 3, standard library only; it needs internet, which Claude's workspace does not have):
+
+```bash
+cd safe-us-stock-trading            # the repository folder
+python3 safe-us-stock-trading/scripts/update_lists.py --store trade-store
+```
+
+It reads the fund's holdings file and the three boycott pages once each, rebuilds both lists and every result file, and prints:
+
+- **RESULTS**: how many names pass, fail or cannot be confirmed
+- **REVIEW**: every boycott name match it found. Each counts as a match until you mark it wrong
+- **PROBLEMS**: any source that failed or looked wrong. That source is then "did not answer" and every stock is UNVERIFIED for the boycott screen, never clean
+
+To run it by itself on the 1st of each month at 10:00:
+
+```bash
+crontab -e
+0 10 1 * * cd /path/to/safe-us-stock-trading && python3 safe-us-stock-trading/scripts/update_lists.py --store trade-store >> trade-store/update.log 2>&1
+```
+
+If a site blocks the script, save its page from your browser into a folder (`spus.csv`, `afsc.html`, `bds.html`, `whoprofits_1.html`, `whoprofits_2.html` ...) and add `--from-dir THAT_FOLDER`.
+
+### Look names up, record your Musaffa answers, fix a wrong match
+
+```bash
+# what the lists say about a ticker (no web call)
+python3 safe-us-stock-trading/scripts/lists.py check --store trade-store AAPL MSFT TSLA
+
+# record what you found on Musaffa: halal | not_halal | doubtful | clear
+python3 safe-us-stock-trading/scripts/lists.py set-halal --store trade-store AAPL halal
+
+# rewrite the result files the engine reads for those names
+python3 safe-us-stock-trading/scripts/lists.py apply --store trade-store --tickers AAPL,MSFT
+```
+
+A wrong boycott name match (say a different company called "Target ...") goes in `trade-store/lists/OVERRIDES.json`, then run the update again:
+
+```json
+{"not_a_match": {"whoprofits": ["TGT"]}}
+```
+
+When a list is past its date the skill says "list too old" for every name instead of calling any of them clean, and tells you to run the update. You can also just say "update the lists" in Claude and it gives you the command.
+
+**Limits.** "Not on the shortlist" is not "not halal": such names need your own lookup. Boycott matching is by company name, so a company listed under a very different name can be missed. Foreign-registered shares have no US ISIN in the fund file and stay unverified until you confirm the ISIN in your broker app. The lists are your own data: they stay in the store and are never shipped with the skill. Read each site's terms before you schedule the update; AFSC asks for-profit investment professionals to donate for its data.
+
 ## How it works
 
 ```mermaid
@@ -226,7 +286,7 @@ flowchart LR
 | Step | Who | Output |
 |---|---|---|
 | Research: news, candidates, prices, filings | Claude | One ledger entry per source (`ledger.py add`) |
-| Screens | `boycott_screen.py`, `shariah_screen.py` | Result files tied to ticker, asset type and ISIN; re-checked at trade time |
+| Screens | `lists.py` (saved lists), `boycott_screen.py`, `shariah_screen.py` | Result files tied to ticker, asset type and ISIN; re-checked at trade time |
 | Source check | `sources_check.py` (+ `sources.json`) | FRESH / STALE / CONFLICT / BAD_SOURCE per entry; re-run when sizing |
 | Signals | `signals.py` | Trend, momentum and market filters, recomputed by the engine from recorded prices |
 | Portfolio state | `portfolio_state.py` | Actual and projected exposure, open risk, cash |
@@ -374,10 +434,17 @@ Claude's sandbox blocks most finance sites by default. Allowing `sec.gov`, `data
 │       ├── journal.py                # trade journal, performance report, reconcile
 │       ├── render_simple.py          # plain-language text output
 │       ├── render_dashboard.py       # per-run HTML dashboard
+│       ├── lists.py                  # v5.3 saved lists: check / set-halal / apply
+│       ├── update_lists.py           # v5.3 one command to refresh both lists (run it yourself)
+│       ├── prescreen.py              # v5.3 screen a pool of stocks ahead of time
+│       ├── store.py                  # v5.3 keep answers and results between sessions
+│       ├── ingest.py · browser_*.js  # market data, SEC numbers and list checks through the browser
+│       ├── money_plan.py             # staged plan for the whole amount
+│       ├── universe.json             # v5.3 sector pools for a wide first look
 │       ├── brokers.json              # broker fee profiles and templates
 │       ├── methodologies.json        # Shariah rules registry
 │       ├── sources.json              # ranked source registry and freshness rules
-│       └── test_*.py                 # 463 tests
+│       └── test_*.py                 # 487 tests
 ├── AUDIT-v4.8.md                     # verification and treasury audit record
 ├── docs/dashboard-preview.png
 ├── .github/                          # CI, issue and PR templates
@@ -408,7 +475,8 @@ It prints a JSON report and exits with code 0 only if every file is present, all
 | `test_v48_mandatory.py` | v4.8 with every gate on: screens, sources, market hours, signals, earnings, fees, journal, dashboard parity, one test per review finding | 109 |
 | `test_v49_actions.py` | v4.9: screens table with references, options and recommendation, flag labels, SKIPPED, `--budget`, Robinhood profile | 12 |
 | `test_v50_ingest.py` | v5.0: one-command data intake (CSV, ledger, signals), colour marks, one test per v5.0 audit finding, readable-sources rule, Robinhood accounts, first-real-run fixes, local time zone, pass-at price, honest odds and results box, money plan, market read | 39 |
-| **Total** | | **463** |
+| `test_v53_fast.py` | v5.3: compact data with a checksum, session store, "check more" and market buttons, pre-screen, quick screen depth, provider verdicts, saved lists, the update command | 24 |
+| **Total** | | **487** |
 
 The pre-v4.8 suites switch off the three v4.8 gates (screens, sources, market hours) with a short block at the top of each file, so each keeps testing the gate it was written for. Fixtures pin the engine's clock inside the test process; the command line can't set it.
 
@@ -431,6 +499,9 @@ Code can't settle these, so treat every plan as research until they're done:
 - [ ] **Exchange-rate model**, so non-USD accounts get executable plans (today they get research only)
 - [ ] **More verified broker profiles**: [request yours](https://github.com/kldnajjar/safe-us-stock-trading/issues/new?template=broker_profile.yml)
 - [ ] **Persistent tracker dashboard** across sessions, built on the per-run dashboard and the journal
+
+- [ ] **`update_lists.py` against the live sites**: tested on saved pages only so far; the first real run is on your machine
+- [ ] **A second halal source that allows automation** (a licensed screening API), so the halal step needs no manual lookup
 
 Boycott evidence files and source ledgers are records of research: they show what was found and where, not proof that each page was read correctly.
 
