@@ -300,8 +300,15 @@ class SavedLists(unittest.TestCase):
             self.assertEqual(lists.halal_add(s, self.HOLD, today, "https://www.sp-funds.com/x.csv")["saved"], 3)
             lists.boycott_add(s, today, self.SITES, {"afsc": ["MSFT"], "bds": ["msft"]})
             rows = {r["ticker"]: r for r in lists.apply(s, ["AAPL", "MSFT", "LIN", "KO"], today)["rows"]}
-            self.assertEqual((rows["AAPL"]["boycott"], rows["AAPL"]["halal"]), ("REVIEWED_NO_MATCH", "REQUIRES_ACCEPTANCE"))
-            self.assertIn("CONFIRM ON MUSAFFA", lists.lookup(s, ["AAPL"])["AAPL"]["halal"])   # fund list = shortlist only
+            self.assertEqual((rows["AAPL"]["boycott"], rows["AAPL"]["halal"]), ("REVIEWED_NO_MATCH", "PERMITTED"))
+            self.assertNotIn("CONFIRM ON MUSAFFA", lists.lookup(s, ["AAPL"])["AAPL"]["halal"])  # default: the list decides
+            self.assertIn("optional: check Musaffa", rows["AAPL"]["note"])
+            os.makedirs(os.path.join(s, "lists"), exist_ok=True)
+            with open(os.path.join(s, "lists", "OVERRIDES.json"), "w") as f:
+                json.dump({"halal_authority": "musaffa"}, f)                    # strict mode: fund list = shortlist only
+            rows = {r["ticker"]: r for r in lists.apply(s, ["AAPL"], today)["rows"]}
+            self.assertEqual(rows["AAPL"]["halal"], "REQUIRES_ACCEPTANCE")
+            self.assertIn("CONFIRM ON MUSAFFA", lists.lookup(s, ["AAPL"])["AAPL"]["halal"])
             lists.set_halal(s, "AAPL", "halal", today)                          # the user looked it up on Musaffa
             lists.set_halal(s, "MSFT", "halal", (dt.date.fromisoformat(today) - dt.timedelta(days=200)).isoformat())
             rows = {r["ticker"]: r for r in lists.apply(s, ["AAPL", "MSFT", "LIN", "KO"], today)["rows"]}
@@ -397,6 +404,33 @@ class UpdateCommand(unittest.TestCase):
         live = ["Microsoft", "Google LLC (Alphabet Inc.)", "IBM", "Cisco Systems", "Booking.com", "Exxon Mobil Corp",
                 "First Solar פירסט סולר", "Applebee's", "Electra Consumer Products", "First International Bank of Israel"]
         self.assertEqual(sorted(lists.match_names(rows, live)), ["BKNG", "CSCO", "FSLR", "GOOGL", "IBM", "MSFT", "XOM"])
+
+
+
+class ChangeMyMind(unittest.TestCase):
+    """A sentence given as plain text must stay a sentence (was shown as 'A; c; a; l; m; ...')."""
+
+    def _html(self, cm):
+        import datetime as dt
+        import render_dashboard as rd
+        an = {"mood": "RISK-OFF", "one_line": "x", "change_my_mind": cm,
+              "facts": [{"what": "w", "means": "m", "url": "https://www.bls.gov/x", "source": "BLS",
+                         "date": dt.date.today().isoformat()}]}
+        return rd.analysis_section(an)
+
+    def test_string_is_one_item(self):
+        h = self._html("A calm board outcome would turn this to NEUTRAL. LIN at 505 would make it a buy.")
+        self.assertIn("A calm board outcome would turn this to NEUTRAL. LIN at 505 would make it a buy.", h)
+        self.assertNotIn("A; c; a; l; m", h)
+        self.assertNotIn("buy..", h)
+
+    def test_list_still_joined(self):
+        h = self._html(["Fed cuts rates.", "Nvidia keeps its CEO"])
+        self.assertIn("Fed cuts rates; Nvidia keeps its CEO.", h)
+
+    def test_empty_shows_nothing(self):
+        for v in ("", "  ", [], None, [" "]):
+            self.assertNotIn("I would change this view if", self._html(v))
 
 
 if __name__ == "__main__":

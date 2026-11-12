@@ -20,9 +20,10 @@ HOLDINGS.txt: "TICKER|CUSIP|Name;..." taken from the fund's own holdings file.
 --sites: {"afsc": {"ok": true, "url": "https://..."}, "bds": {...}, "whoprofits": {...}}; a site that did not
 answer is left out or "ok": false and every name is then UNVERIFIED, never clean.
 --hits: {"afsc": ["MSFT", ...], "bds": [...], "whoprofits": [...]}: confirmed matches after opening each lead.
-Halal authority (v5.3): Musaffa by default. The fund list is then only a shortlist: a stock it holds is "your call"
-until the user reports Musaffa's verdict (set-halal; kept 120 days). Set "halal_authority": "fund" in
-STORE/lists/OVERRIDES.json to let the fund list count as halal alone.
+Halal authority (v5.3): the saved fund list by default, so no question is asked: a stock the fund holds is halal
+by that fund's own screen. Checking Musaffa is OPTIONAL: if the user reports its verdict (set-halal; kept 120 days)
+it wins over the fund list. Set "halal_authority": "musaffa" in STORE/lists/OVERRIDES.json to make the fund list
+only a shortlist ("your call" until the user reports Musaffa's verdict).
 A ticker that is not on the halal list gets no halal result here ("not on the list" is not "not halal").
 """
 import argparse, datetime as dt, json, os, re, subprocess, sys
@@ -88,7 +89,7 @@ def match_names(rows, names):
 def overrides(store):
     o = _load(_path(store, "OVERRIDES.json")) or {}
     return dict(not_a_match=o.get("not_a_match") or {}, match=o.get("match") or {}, halal=o.get("halal") or {},
-                halal_authority=o.get("halal_authority") or "musaffa")
+                halal_authority=o.get("halal_authority") or "fund")
 
 
 USER_VERDICT_DAYS = 120
@@ -231,7 +232,8 @@ def apply(store, tickers=None, as_of=None, methodology="aaoifi"):
                                      "" if meta["isin"] else "foreign-registered share: ISIN not on file, confirm it in your app",
                                      (f"halal: you reported {said['verdict'].replace('_', ' ')} ({said['date']})" if said
                                       else f"halal: held by {hl['provider'].upper()} on {hl['as_of']}"
-                                      + ("; confirm on Musaffa and tell me" if confirm else ""))) if x)
+                                      + ("; confirm on Musaffa and tell me" if confirm
+                                         else "; optional: check Musaffa yourself and tell me if it differs"))) if x)
         rows.append(dict(ticker=t, sector="", boycott=b.get("status") or "NOT RUN", halal=s.get("policy_decision") or "NOT RUN", note=note[:300]))
     out = dict(schema="prescreen/1", as_of=as_of, methodology=methodology, rows=rows)
     with open(os.path.join(store, "PRESCREEN.json"), "w") as f:

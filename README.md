@@ -44,11 +44,11 @@ The engine is verified: an independent recomputation matched every dollar figure
 | Feature | What it does |
 |---|---|
 | 💬 **Few questions** | Saved answers are confirmed in one question; a new user gets grouped tap-to-answer questions; "not sure" takes a safe default |
-| ⚡ **Screening from saved lists** | A halal shortlist and a boycott list are kept on your computer and read with no web lookups during a trade run; one command refreshes them ([how](#screening-from-saved-lists)) |
+| ⚡ **Screening from saved lists** | A halal list and a boycott list are kept on your computer and decide both screens with no web lookups and no questions during a trade run; one command refreshes them ([how](#screening-from-saved-lists)) |
 | 🎯 **Exact levels** | Limit buy price, stop-loss (or a review level for long-term holds), two sell targets, share counts and every fee |
 | 💸 **Real costs** | Any broker's fee schedule (percent, per share, flat or commission-free), separate sell fees, FX only when currency is actually converted, spread and slippage. Unverified fee schedules are labelled on every plan |
 | 🛡️ **Portfolio-wide limits** | Per-stock and per-ETF caps, sector caps (ETFs looked through), total open risk, cash floor, max positions |
-| ☪️ **Shariah screen, always on** | AAOIFI SS-21, MSCI Islamic (two series), S&P Shariah or Dow Jones Islamic, from a versioned and sourced registry, with purification in USD (always rounded up). By default the halal judge is Musaffa, through your own lookup (their terms forbid scripts): a certified Shariah fund's holdings give the shortlist, your reported verdict decides |
+| ☪️ **Shariah screen, always on** | AAOIFI SS-21, MSCI Islamic (two series), S&P Shariah or Dow Jones Islamic, from a versioned and sourced registry, with purification in USD (always rounded up). By default the halal answer comes from a saved list (a certified Shariah fund's holdings), with no question asked; checking Musaffa yourself is optional and your reported verdict wins |
 | ✊ **Boycott screen, always on** | Quick depth (default): AFSC Investigate, the BDS target page and Who Profits. Full depth adds the UN OHCHR settlements database and SEC filings. The status is computed from evidence, never typed in; a list that did not answer never gives a clean result |
 | 🔎 **Fresh, ranked, shown sources** | Every number is a ledger entry from a ranked source (official > wire/press > data sites), checked for freshness and the right site; two price sources must agree; company financials come only from SEC filings |
 | ❓ **Every NO BUY explained** | Every reason in plain words, the facts behind it (which list, which ratio, which source is stale), what would fix it, and what else is still needed |
@@ -56,7 +56,7 @@ The engine is verified: an independent recomputation matched every dollar figure
 | 🕰️ **Market-hours aware** | NYSE regular session, holidays and early closes; outside them you get a conditional WAIT plan |
 | 📰 **News-driven context** | Fed, BLS, BEA, Treasury and SEC first, then major outlets; releases are read against expectations |
 | 🥇 **Gold / silver signal** | Six-factor score; unverifiable factors lower confidence instead of counting as zero |
-| 📊 **Dashboard every run** | One self-contained HTML page: portfolio, limits used, a BUY / WAIT / NO BUY card per idea with every reason and its sources; a "Check more" box with a live market-open line and buttons that write a ready follow-up request (follow the market, new ideas, one sector, your own tickers) |
+| 📊 **Dashboard every run** | One self-contained HTML page: portfolio, limits used, a BUY / WAIT / NO BUY card per idea with every reason and its sources; a "Check more" box with a live market-open line and buttons that copy a ready follow-up request (follow the market, new ideas, one sector, your own tickers) for you to paste in the chat |
 | 📒 **Trade journal** | Paper and real trades; win rate, average R, totals after fees and charity, comparison with a benchmark, reconciliation with your app |
 
 Both screens are **always on**. You choose *exclude* (default: failing names are never planned) or *flag only* (every screened idea is shown as an option, labelled with its result and the reference behind it: which list and link, or which Shariah ratio failed; you decide).
@@ -145,6 +145,8 @@ YOU DECIDE. YOU PLACE ORDER. NOT ADVICE.
   <br><sub>Test data, not real positions. Light and dark mode, works on a phone.</sub>
 </p>
 
+**"Check more" is two steps.** A dashboard page cannot start a run by itself. Tap a button: it copies the request (and shows it in a box, with "Copy again", if your browser blocks copying). Then paste it in the chat with Claude and send. A follow-up reuses your saved answers and checks, so it is quicker than a first run.
+
 ## Quick start
 
 **Requirements:** Python 3.9+ (standard library only; nothing to install) and Claude with skills enabled.
@@ -210,11 +212,11 @@ Since v5.3 the two screens can be answered from lists kept in a folder on your o
 
 | List | What it is | Good for |
 |---|---|---|
-| Halal shortlist | The holdings file a certified Shariah fund publishes for download (SPUS by default). A stock the fund holds passed that fund's screen on the file's date | 120 days |
+| Halal list | The holdings file a certified Shariah fund publishes for download (SPUS by default). A stock the fund holds passed that fund's screen on the file's date | 120 days |
 | Boycott list | For the same names: which ones AFSC Investigate (occupations list), the BDS target page or Who Profits name | 30 days |
 | Your halal answers | What **you** found on Musaffa for a name (halal, not halal, doubtful) | 120 days each |
 
-**Musaffa is the halal judge by default, through you.** Musaffa's terms of use forbid robots and scripts, so the skill never reads their site. A stock on the fund shortlist shows as "confirm on Musaffa" until you look it up yourself and report it; your answer wins over the fund list. To let the fund list count alone, set `"halal_authority": "fund"` in `trade-store/lists/OVERRIDES.json`. Screeners can disagree with each other, which is why your own lookup decides.
+**The saved list decides by default; Musaffa is optional.** A stock the fund list holds counts as halal from the list alone, so a run does not ask you to open any website. You can still look a pick up on Musaffa yourself and report it with `set-halal`; your answer wins over the fund list for 120 days. Musaffa's terms of use forbid robots and scripts, so the skill never reads their site. Screeners can disagree with each other: for strict mode, where every pick shows "confirm on Musaffa" until you report it, set `"halal_authority": "musaffa"` in `trade-store/lists/OVERRIDES.json`.
 
 ### Update the lists
 
@@ -240,13 +242,13 @@ crontab -e
 
 If a site blocks the script, save its page from your browser into a folder (`spus.csv`, `afsc.html`, `bds.html`, `whoprofits_1.html`, `whoprofits_2.html` ...) and add `--from-dir THAT_FOLDER`.
 
-### Look names up, record your Musaffa answers, fix a wrong match
+### Look names up, record an optional Musaffa answer, fix a wrong match
 
 ```bash
 # what the lists say about a ticker (no web call)
 python3 safe-us-stock-trading/scripts/lists.py check --store trade-store AAPL MSFT TSLA
 
-# record what you found on Musaffa: halal | not_halal | doubtful | clear
+# optional: record what you found on Musaffa (wins over the list for 120 days): halal | not_halal | doubtful | clear
 python3 safe-us-stock-trading/scripts/lists.py set-halal --store trade-store AAPL halal
 
 # rewrite the result files the engine reads for those names
@@ -261,7 +263,7 @@ A wrong boycott name match (say a different company called "Target ...") goes in
 
 When a list is past its date the skill says "list too old" for every name instead of calling any of them clean, and tells you to run the update. You can also just say "update the lists" in Claude and it gives you the command.
 
-**Limits.** "Not on the shortlist" is not "not halal": such names need your own lookup. Boycott matching is by company name, so a company listed under a very different name can be missed. Foreign-registered shares have no US ISIN in the fund file and stay unverified until you confirm the ISIN in your broker app. The lists are your own data: they stay in the store and are never shipped with the skill. Read each site's terms before you schedule the update; AFSC asks for-profit investment professionals to donate for its data.
+**Limits.** "Not on the list" is not "not halal": such names need your own lookup. A fund holding a stock is that fund's screen on the file's date, not a fresh verdict, and screeners can disagree; purification is not worked out from the list. Boycott matching is by company name, so a company listed under a very different name can be missed. Foreign-registered shares have no US ISIN in the fund file and stay unverified until you confirm the ISIN in your broker app. The lists are your own data: they stay in the store and are never shipped with the skill. Read each site's terms before you schedule the update; AFSC asks for-profit investment professionals to donate for its data.
 
 ## How it works
 
@@ -444,7 +446,7 @@ Claude's sandbox blocks most finance sites by default. Allowing `sec.gov`, `data
 │       ├── brokers.json              # broker fee profiles and templates
 │       ├── methodologies.json        # Shariah rules registry
 │       ├── sources.json              # ranked source registry and freshness rules
-│       └── test_*.py                 # 487 tests
+│       └── test_*.py                 # 490 tests
 ├── AUDIT-v4.8.md                     # verification and treasury audit record
 ├── docs/dashboard-preview.png
 ├── .github/                          # CI, issue and PR templates
@@ -475,8 +477,8 @@ It prints a JSON report and exits with code 0 only if every file is present, all
 | `test_v48_mandatory.py` | v4.8 with every gate on: screens, sources, market hours, signals, earnings, fees, journal, dashboard parity, one test per review finding | 109 |
 | `test_v49_actions.py` | v4.9: screens table with references, options and recommendation, flag labels, SKIPPED, `--budget`, Robinhood profile | 12 |
 | `test_v50_ingest.py` | v5.0: one-command data intake (CSV, ledger, signals), colour marks, one test per v5.0 audit finding, readable-sources rule, Robinhood accounts, first-real-run fixes, local time zone, pass-at price, honest odds and results box, money plan, market read | 39 |
-| `test_v53_fast.py` | v5.3: compact data with a checksum, session store, "check more" and market buttons, pre-screen, quick screen depth, provider verdicts, saved lists, the update command | 24 |
-| **Total** | | **487** |
+| `test_v53_fast.py` | v5.3: compact data with a checksum, session store, "check more" and market buttons, pre-screen, quick screen depth, provider verdicts, saved lists, the update command | 27 |
+| **Total** | | **490** |
 
 The pre-v4.8 suites switch off the three v4.8 gates (screens, sources, market hours) with a short block at the top of each file, so each keeps testing the gate it was written for. Fixtures pin the engine's clock inside the test process; the command line can't set it.
 
@@ -501,7 +503,10 @@ Code can't settle these, so treat every plan as research until they're done:
 - [ ] **Persistent tracker dashboard** across sessions, built on the per-run dashboard and the journal
 
 - [ ] **`update_lists.py` against the live sites**: tested on saved pages only so far; the first real run is on your machine
-- [ ] **A second halal source that allows automation** (a licensed screening API), so the halal step needs no manual lookup
+- [ ] **A second halal source that allows automation** (a licensed screening API), so names outside the fund list need no manual lookup
+- [ ] **ISINs for foreign-registered shares** (Linde and 13 others in the fund file), which stay unverified today
+- [ ] **Build stamp on the dashboard**, so a page shows which skill version made it
+- [ ] **"Check more" copy fallback in real browsers**: checked for syntax only so far
 
 Boycott evidence files and source ledgers are records of research: they show what was found and where, not proof that each page was read correctly.
 

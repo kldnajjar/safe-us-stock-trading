@@ -108,7 +108,7 @@ background:var(--info-bg);color:var(--ink);cursor:pointer}.more button:hover{bor
 .more input{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);
 color:var(--ink);flex:1;min-width:160px}
 .more textarea{width:100%;min-height:74px;margin-top:8px;font:13px/1.4 ui-monospace,monospace;padding:8px;border-radius:8px;
-border:1px solid var(--line);background:var(--bg);color:var(--ink)}.more .said{font-weight:700;min-height:1.4em}
+border:1px solid var(--line);background:var(--bg);color:var(--ink)}.more .said{font-weight:700;min-height:1.4em}.more .said.warn{color:var(--warn)}
 @media print{.more,.more-h{display:none}}
 @media (max-width:520px){.secrow{grid-template-columns:90px 1fr 90px}.hero .big{font-size:24px}}
 @media print{:root,:root[data-theme="dark"],:root:not([data-theme="light"]){--bg:#fff;--card:#fff;--ink:#111;--mute:#555;
@@ -372,7 +372,11 @@ def analysis_section(an):
                 '<th>Then likely</th><th>Watch</th></tr></thead><tbody>' + "".join(
                     f'<tr><td><b>{e(str(x["name"]).upper())}</b></td><td>{e(x.get("then") or "")}</td>'
                     f'<td>{e(x.get("watch") or "")}</td></tr>' for x in sc) + "</tbody></table></div>")
-    cm = [str(x) for x in an.get("change_my_mind") or [] if str(x).strip()]
+    cm = an.get("change_my_mind") or []
+    if isinstance(cm, (str, bytes)) or not isinstance(cm, (list, tuple)):
+        cm = [cm]          # one sentence is one item; never walk a string letter by letter
+    cm = [str(x).strip().rstrip(".;").strip() for x in cm if isinstance(x, (str, int, float)) and str(x).strip()]
+    cm = [x for x in cm if x]
     if cm:
         out += '<div class="sub" style="margin-top:8px"><b>I would change this view if:</b> ' + e("; ".join(cm)) + ".</div>"
     out += ('<div class="sub" style="margin-top:6px">This is my reading of the facts above. Markets often do the '
@@ -684,10 +688,14 @@ def universe():
 
 MORE_JS = """
 (function(){var box=document.getElementById('more-text'),said=document.getElementById('more-said');
-function put(t){box.value=t;box.focus();box.select();
-var done=function(){said.textContent='COPIED. PASTE IT IN THE CHAT WITH CLAUDE.'};
-var fail=function(){said.textContent='SELECTED BELOW. COPY IT AND PASTE IT IN THE CHAT WITH CLAUDE.'};
-try{navigator.clipboard.writeText(t).then(done,fail)}catch(e){fail()}}
+function put(t){box.value=t;box.focus();box.select();try{box.setSelectionRange(0,t.length)}catch(e){}
+var done=function(){said.className='said ok';said.textContent='+ STEP 1 DONE: COPIED. STEP 2: PASTE IT IN THE CHAT WITH CLAUDE AND SEND.'};
+var fail=function(){said.className='said warn';said.textContent='! COULD NOT COPY FOR YOU. THE REQUEST IS SELECTED BELOW: COPY IT, PASTE IT IN THE CHAT WITH CLAUDE AND SEND.'};
+var old=function(){var ok=false;try{ok=document.execCommand('copy')}catch(e){}if(ok){done()}else{fail()}};
+try{navigator.clipboard.writeText(t).then(done,old)}catch(e){old()}
+try{box.scrollIntoView({block:'nearest'})}catch(e){}}
+var again=document.getElementById('more-copy');
+if(again){again.addEventListener('click',function(){if(box.value){put(box.value)}else{said.className='said warn';said.textContent='! TAP A BUTTON ABOVE FIRST.'}})}
 var mk=document.getElementById('more-market');
 if(mk){var hol=JSON.parse(mk.getAttribute('data-hol')),early=JSON.parse(mk.getAttribute('data-early'));
 var F=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',
@@ -710,7 +718,7 @@ try{tick();setInterval(tick,60000)}catch(e){mk.querySelector('.st').textContent=
 document.querySelectorAll('.more button[data-ask]').forEach(function(b){b.addEventListener('click',function(){
 var ask=b.getAttribute('data-ask');
 if(b.hasAttribute('data-typed')){var v=document.getElementById('more-tickers').value.replace(/[^A-Za-z0-9., -]/g,'').trim();
-if(!v){said.textContent='TYPE ONE OR MORE TICKERS FIRST.';return}ask=ask.replace('{T}',v.toUpperCase())}
+if(!v){said.className='said warn';said.textContent='! TYPE ONE OR MORE TICKERS FIRST.';return}ask=ask.replace('{T}',v.toUpperCase())}
 put(ask+' '+box.getAttribute('data-same'))})})})();
 """
 
@@ -750,10 +758,12 @@ def more_section(plans, state):
     rows.append('<div class="sub">Your own tickers:</div><div class="row">'
                 '<input id="more-tickers" type="text" placeholder="MSFT, COST" maxlength="80" autocomplete="off">'
                 + btn("Check these", "check these tickers: {T}.", typed=True) + "</div>")
-    return ('<h2 class="more-h">Check more</h2><div class="more"><div class="sub">Tap one. It writes the request for you. '
-            'Paste it in the chat with Claude. A follow-up reuses your answers and saved checks, so it is quicker.</div>'
+    return ('<h2 class="more-h">Check more</h2><div class="more"><div class="sub"><b>This page cannot start a run by itself.</b> '
+            'Step 1: tap a button, it copies the request. Step 2: paste it in the chat with Claude and send. '
+            'A follow-up reuses your answers and saved checks, so it is quicker.</div>'
             + "".join(rows) + '<div class="said ok" id="more-said" aria-live="polite"></div>'
-            f'<textarea id="more-text" readonly aria-label="Request to paste in the chat" data-same="{e(same)}"></textarea></div>')
+            f'<textarea id="more-text" readonly aria-label="Request to paste in the chat" data-same="{e(same)}"></textarea>'
+            '<div class="row"><button type="button" id="more-copy">Copy again</button></div></div>')
 
 
 def prescreen_section(ps):
